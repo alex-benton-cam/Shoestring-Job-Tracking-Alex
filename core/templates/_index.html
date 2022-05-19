@@ -1,0 +1,111 @@
+{% extends "_base.html" %}
+{% block title %}Employee Dashboard{% endblock %}
+{% block css %}
+
+<link rel="stylesheet" href="{{STATIC}}css/dashboard.css">
+{% endblock %}
+
+{% block body %}
+
+<!-- Navbar (Top of page) -->
+<header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
+  <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3" href="#">Shoestring</a>
+  <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-bs-toggle="collapse"
+    data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  <div class="navbar-nav">
+    <div class="nav-item text-nowrap">
+      <a class="nav-link px-3" href="#">Sign out</a>
+    </div>
+  </div>
+</header>
+
+{% macro nav_item(friendly, link="/#", icon="bi-app") %}
+<li class="nav-item active">
+  <a class="nav-link" href="{{link}}">
+    <i class="{{icon}}"></i>&nbsp
+    <span>{{friendly}}</span>
+  </a>
+</li>    
+{% endmacro %}
+
+<!-- Sidebar -->
+<div class="container-fluid">
+  <div class="row">
+    <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+      <ul class="nav flex-column mb-auto">
+        {{nav_item("Dashboard", "/dashboard", "bi-speedometer2")}}
+        {{nav_item("Upload Ops", "/upload", "bi-upload")}}
+        {{nav_item("Upload Locs", "/uploadlocs", "bi-upload")}}
+        {{nav_item("Operator Dash", "/operator", "bi-box-seam")}}
+        <hr>
+        {{nav_item("Jobs", "/jobs", "bi-briefcase")}}
+        {{nav_item("Operations", "/operations", "bi-clipboard-check")}}
+        {{nav_item("Locations", "/locations", "bi-pin-angle")}}
+        {{nav_item("Operators", "/operators", "bi-person-badge")}}
+        <hr>
+        {{nav_item("Cards", "/cards", "bi-card-text")}}
+
+      <ul class="nav flex-column mt-auto position-absolute bottom-0">
+        <li class="nav-item active">
+          <a id="live_status" class="nav-link" href="#">
+            <i class="bi-wifi-off text-danger"></i>&nbsp
+            <span  class="text-danger" >Disconnected</span>
+          </a>
+        </li>    
+      </ul>
+  </div>
+
+  </nav>
+
+  <!-- Main Content -->
+  <main class="col-md-9 ms-sm-auto col-lg-10 pt-3">
+    {% block content %}{% endblock %}
+
+
+  </main>
+
+
+</div>
+</div>
+<footer class="mt-auto">
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-3 col-lg-2 d-md-block">
+        Placeholder
+      </div>
+      <div class="col-md-9 col-lg-10 text-center">
+        <a class="text-decoration-none link-secondary"
+          href="https://www.ifm.eng.cam.ac.uk/research/dial/research-projects/digital-manufacturing-on-a-shoestring/">
+          <h6>Copyright © Shoestring 2022</h6>
+        </a>
+      </div>
+    </div>
+  </div>
+</footer>
+{% endblock %}
+
+{% block scripts %}
+
+<script src="{{STATIC}}js/dashboard.js"></script>
+<script src="{{STATIC}}js/feather.js"></script>
+
+<script>
+  function status_connect(){
+    var status = document.getElementById("live_status");
+    status.innerHTML = '<i class="bi-wifi text-success"></i>&nbsp<span class="text-success" >Connected</span>';
+  }
+  
+  function status_disconnect(){
+    var status = document.getElementById("live_status");
+    status.innerHTML = '<i class="bi-wifi-off text-danger"></i>&nbsp<span class="text-danger" >Disconnected</span>';
+  }
+
+  wsc.connect("ws://"+window.location.host+"/ws/stateupdates");
+  wsc.register_connect_callback(status_connect);
+  wsc.register_disconnect_callback(status_disconnect);
+</script>
+
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "_index.html" %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-7 col-12 mb-3">
+            <div class="row gy-4">
+                <div class="col-12 d-flex align-items-stretch">
+                    <div class="card" style="width: 100%;">
+                        <div class="card-header">Current Job</div>
+                        <div class="card-body">
+                            Job: W/20183<br>
+                            
+                            Batch Running<br>
+                            {{submit}}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-8 d-flex align-items-stretch">
+                    <form method="post" >
+                        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                        <div class="card" style="width: 100%;">
+                            <input type="submit" name="advance_to_next_button" class="btn btn-success stretched-link" style="height: 100%;"  value="Advance to Next">
+                        </div>
+                    </form>
+                </div>
+
+                <div class="col-4 d-flex align-items-stretch">
+                    <form method="post" >
+                        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                        <div class="card" style="width: 100%;">
+                            <input type="submit" name="undo_last_button" class="btn btn-light stretched-link" style="height: 100%;"  value="Undo Last">
+                        </div>
+                    </form>
+                </div>
+
+                <div class="col-6 d-flex align-items-stretch">
+                    <form method="post" >
+                        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                        <div class="card" style="width: 100%;">
+                            <input type="submit" name="call_manager_button" class="btn btn-danger stretched-link" 
+                                style="height: 100%;" value="Call Manager">
+                        </div>
+                    </form>
+                </div>
+
+                <div class="col-6 d-flex align-items-stretch">
+                    <form method="post" >
+                        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                        <div class="card" style="width: 100%;">
+                            <input type="submit" name="report_scrap_button" class="btn btn-warning stretched-link" 
+                                style="height: 100%;" value="Report Scrap">
+                        </div>
+                    </form>
+                </div>
+
+                <!--
+                <div class="col-6 d-flex align-items-stretch">
+                    <div class="card" style="width: 100%;">
+                        <a href="#" class="btn btn-danger stretched-link" style="height: 100%;">Call Manager</a>
+                    </div>
+                </div>
+                <div class="col-6 d-flex align-items-stretch">
+                    <div class="card" style="width: 100%;">
+                        <a href="#" class="btn btn-warning stretched-link" style="height: 100%;">Report Scrap</a>
+                    </div>
+                </div>
+                -->
+
+                <div class="col-12">
+                    <div class="card" style="width: 100%;">
+                        <div class="card-header">Job Log</div>
+                        <div class="card-body">
+                            <table class="table">
+                                {% for field, value in jobLog.items() %}
+                                <tr>
+                                    <td>{{ field }}</td>
+                                    <td>{{ value }}</td>
+                                </tr>
+                                {% endfor %}
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-5 col-12 mb-3 d-flex align-items-stretch">
+            <div class="card" style="width: 100%;">
+                <div class="card-header">Job Card</div>
+                <div class="card-body">
+                    {% block table %}
+                    <table class="table table-striped">
+                        {% for field_id, field_attrs in fieldDict.items() %}
+                        <tr>
+                            <td>{{ field_attrs.verbose }}</td>
+                            {% if field_attrs.href is defined %}
+                            <td>
+                                <a href={{ opData[field_attrs.href] }}>{{ opData[field_id] }}<a>
+                            </td>
+                            {% else %}
+                            <td>{{ opData[field_id] }}</td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </table>
+                    {% endblock %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "_index.html" %}
+{% block css %}
+    {{ super() }}
+    <link rel="stylesheet" href="{{ STATIC }}datatables/datatables.min.css">
+{% endblock %}
+{% block content %}
+    {% set cardStyle = "col-12 mb-3" %}
+    <div class="container-fluid">
+        <div class="row">
+            <div class= "{{ cardStyle }}">
+                <div class="card">
+                    <div class="card-body">
+                        <table id="example" class="display" style="width:100%">
+                            {% block tableData %}{% endblock %}
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+{% block scripts %}
+    {{ super() }}
+    <script type="text/javascript" src="{{STATIC}}datatables/datatables.min.js"></script>
+    <script>
+    $(document).ready(function() {
+        $('#example').DataTable({
+            scrollX: true,
+        });
+    } );
+    </script>
+{% endblock %}
