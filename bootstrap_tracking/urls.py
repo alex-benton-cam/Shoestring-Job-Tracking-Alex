@@ -16,7 +16,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from core import views
-from core.models import Operation, Job, Operator,Location
+from core.models import Operation, Job, Worker ,Location
 
 urlpatterns = [
     # Infrastructural
@@ -26,17 +26,11 @@ urlpatterns = [
     # Main
     path('upload/', views.uploadOps, name='upload'),
     path('uploadlocs/', views.uploadLocs, name='uploadlocs'),
-    
-    # Model-based
-    #path('jobs/', views.Jobs.as_view(), name='jobs'),
-    #path('locations/', views.Locations.as_view(), name='locations'),
-    #path('operators/', views.Operators.as_view(), name='operators'),    
-    #path('operations/', views.Operations.as_view(), name='operations'),
-    
+      
     # Model-based
     path('jobs/', views.ModelView.as_view(model=Job), name='jobs'),
     path('locations/', views.ModelView.as_view(model=Location), name='locations'),
-    path('operators/', views.ModelView.as_view(model=Operator), name='operators'),    
+    path('workers/', views.ModelView.as_view(model=Worker), name='workers'),    
     path('operations/', views.ModelView.as_view(model=Operation), name='operations'),
     
     # Detail Views

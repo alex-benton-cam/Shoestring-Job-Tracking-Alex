@@ -55,7 +55,7 @@ def attempt3():
     operation = Operation.objects.get(link_slug="w21704a10")
     print(get_value(operation, "op_id"))
     print(get_value(operation, "job_id__quantity"))      
-    print(get_value(operation, "job_id__operator_id__name"))    
+    print(get_value(operation, "job_id__worker"))    
     print(get_value(operation, "job_id__operat_id__notexist"))  
 
 def get_verbose2(model, field_id, app='core'):
@@ -68,7 +68,7 @@ def get_verbose2(model, field_id, app='core'):
     except:
         return "views.get_verbose error"        
 
-#eg get_verbose(Operator, "job_id__quantity")
+#eg get_verbose(Worker, "job_id__quantity")
 def get_verbose(model, field_str, app='core'):
     try:
         if "__" in field_str:

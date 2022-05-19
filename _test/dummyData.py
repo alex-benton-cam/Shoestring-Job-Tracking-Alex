@@ -2,7 +2,7 @@ import pandas as pd
 from dateutil.parser import parse
 headers = {
     "work_no": ["W/21704"]*5,
-    "operator": ["Tim", "Greg", None, None, None],
+    "worker": ["Tim", "Greg", None, None, None],
     "location": ["Release", "T6", "Sub-Con", "Insp - Goods In", "Packing"],
     
     "issue_no": ["A"]*5,

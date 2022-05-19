@@ -15,7 +15,7 @@ from django.core import serializers
 from django.core.exceptions import ObjectDoesNotExist
 from numpy import disp
 
-from .models import Operation, Job, Operator, Location
+from .models import Operation, Job, Worker, Location
 import pandas as pd
 from core.utils import stdDateTime
 from json import dumps, loads
@@ -61,10 +61,6 @@ class Index(View):
         return render(request, self.template)
 
 
-def toDict(row):
-    pass
-
-
 def uploadOps(request):
     data = {}
     template = "upload.html"
@@ -106,15 +102,15 @@ def uploadOps(request):
             for field in jobFields:
                 rowDict.pop(field, None)
 
-            if rowDict["operator"]:
+            if rowDict["worker"]:
                 try:
-                    parentOperator = Operator.objects.get(name=rowDict["operator"])
-                    rowDict["operator"] = parentOperator
+                    parentWorker = Worker.objects.get(name=rowDict["worker"])
+                    rowDict["worker"] = parentWorker
                 except ObjectDoesNotExist:
                     messages.warning(
-                        request, "Operator '" + rowDict["operator"] + "' does not Exist"
+                        request, "Worker '" + rowDict["worker"] + "' does not Exist"
                     )
-                    rowDict["operator"] = None
+                    rowDict["worker"] = None
 
             if rowDict["location"]:
                 try:
@@ -195,7 +191,7 @@ class ModelView(View):
                 "op_no": {"href": "abs_link"},
                 "op_name": {},
                 "location_id__name": {"verbose": "Location", "href": "location_id__abs_link"},
-                "operator": {"href": "operator_id__abs_link"},
+                "worker": {"href": "worker_id__abs_link"},
                 "job_id__quantity": {},
             }
 
@@ -208,7 +204,7 @@ class ModelView(View):
                 "location": {},
             }
             
-        elif self.model == Operator:
+        elif self.model == Worker:
             fieldDict = {
                 "name": {"href": "abs_link"},
             }
@@ -218,7 +214,7 @@ class ModelView(View):
                 "loc_id": {"href": "abs_link"},
                 "name": {},
                 "machine": {},
-                "operator": {},
+                "worker": {},
             }
         
         else:

@@ -3,7 +3,7 @@ from datetime import datetime
 from core.utils import stdDateTime
 from django.utils.text import slugify
 
-class Operator(models.Model):
+class Worker(models.Model):
     name = models.CharField("Name", max_length=40, primary_key=True, unique=True)
     
     # Calculated Fields
@@ -15,8 +15,8 @@ class Operator(models.Model):
     
     def save(self, *args, **kwargs):
         self.link_slug = slugify(self.name)
-        self.abs_link = "/operator/" + self.link_slug
-        super(Operator, self).save(*args, **kwargs)
+        self.abs_link = "/worker/" + self.link_slug
+        super(Worker, self).save(*args, **kwargs)
 
 class Location(models.Model):
     # Calculated Fields
@@ -29,7 +29,7 @@ class Location(models.Model):
     machine = models.BooleanField("Machine", default=True)
     
     # Relationships
-    operator = models.ForeignKey(Operator, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Operator")
+    worker = models.ForeignKey(Worker, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Worker")
     
     def __str__(self):
         return self.loc_id
@@ -53,7 +53,7 @@ class Job(models.Model):
     job_log = models.JSONField("Job Log", blank=True, null=True)
     
     # Relationships
-    operator = models.ForeignKey(Operator, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Operator")
+    worker = models.ForeignKey(Worker, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Worker")
     location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Location")
     
     def __str__(self):
@@ -71,7 +71,7 @@ class Operation(models.Model):
     abs_link = models.CharField("Link", max_length=30, unique=True, editable=False)
     
     # Relationships
-    operator = models.ForeignKey(Operator, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Operator")
+    worker = models.ForeignKey(Worker, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Worker")
     location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Location")
     job = models.ForeignKey(Job, on_delete=models.CASCADE, null=True, blank=True, verbose_name="Job")
     
