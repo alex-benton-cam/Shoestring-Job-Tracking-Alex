@@ -15,29 +15,41 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from requests import session
 from core import views
-from core.models import Operation, Job, Worker ,Location
+from core.models import Operation, Job, Worker, Location
 
 urlpatterns = [
     # Infrastructural
     path('admin/', admin.site.urls),
     path('', views.Index.as_view(), name='index'),
-    
+
     # Main
-    path('upload/', views.uploadOps, name='upload'),
-    path('uploadlocs/', views.uploadLocs, name='uploadlocs'),
-      
+    path('upload/', views.UploadOps.as_view(), name='upload'),
+    path('uploadlocs/', views.UploadLocs.as_view(), name='uploadlocs'),
+    path('mgsetup/', views.MgSetup.as_view(), name='mgsetup'),
+    
     # Model-based
     path('jobs/', views.ModelView.as_view(model=Job), name='jobs'),
     path('locations/', views.ModelView.as_view(model=Location), name='locations'),
-    path('workers/', views.ModelView.as_view(model=Worker), name='workers'),    
+    path('workers/', views.ModelView.as_view(model=Worker), name='workers'),
     path('operations/', views.ModelView.as_view(model=Operation), name='operations'),
     
-    # Detail Views
-    path('operation/<slug:op>', views.OpDetail.as_view(), name='opdetail'),
     
+
+    # Detail Views
+    path('operation/<slug:link_slug>', views.OpDetail.as_view(), name='opdetail'),
+    path('job/<slug:link_slug>', views.JobDetail.as_view(), name='jobdetail'),
+    path('location/<slug:link_slug>', views.LocDetail.as_view(), name='locdetail'),
+    
+    #Operator Dashboard Views
+    path('operation/', views.Op_OperationDash.as_view(), name='operation'),
+    path('machine/', views.Op_MachineView.as_view(), name='machine'),
+    path('factory/', views.Op_FactoryFloor.as_view(), name='factory'),
+
+
     # Templates/ Placeholders
-    path('operator/', views.OperatorDash.as_view(), name='operator'),
-    path('cards/', views.Cards.as_view(), name='cards'),
-    path('dashboard/', views.Dashboard.as_view(), name='dashboard'),   
+    #path('operator/', views.OperatorDash.as_view(), name='operator'),
+    #path('cards/', views.Cards.as_view(), name='cards'),
+    #path('dashboard/', views.Dashboard.as_view(), name='dashboard'),
 ]

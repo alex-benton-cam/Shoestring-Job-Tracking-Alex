@@ -10,7 +10,7 @@ headers = {
     "part_no": [245, 384, 128, 243, 214],
     "company": ["Eg Inc"]*5,
     "job_name": ["Valve"]*5,
-    "op_name": ["Release to Production",
+    "name": ["Release to Production",
                "Turn General",
                "Sub-Contract Companies",
                "Inspection at Goods In of Sub-Con Parts",

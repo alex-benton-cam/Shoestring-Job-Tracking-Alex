@@ -1,111 +1,191 @@
-{% extends "_base.html" %}
-{% block title %}Employee Dashboard{% endblock %}
+{% extends "_macros.html" %}
+{% block title %}Shoestring{% endblock %}
 {% block css %}
-
-<link rel="stylesheet" href="{{STATIC}}css/dashboard.css">
+  <link rel="stylesheet" href="{{ STATIC }}css/dashboard.css">
+  <link rel="stylesheet" href="{{ STATIC }}datatables/datatables.min.css">
 {% endblock %}
-
+{% block macros %}{{ super() }}{% endblock %}
 {% block body %}
-
-<!-- Navbar (Top of page) -->
-<header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
-  <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3" href="#">Shoestring</a>
-  <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-bs-toggle="collapse"
-    data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
-    <span class="navbar-toggler-icon"></span>
-  </button>
-
-  <div class="navbar-nav">
-    <div class="nav-item text-nowrap">
-      <a class="nav-link px-3" href="#">Sign out</a>
+  <!-- Navbar (Top of page) -->
+  <header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
+    <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3" href="#">Shoestring Job Tracking</a>
+    <button class="navbar-toggler position-absolute d-md-none collapsed"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#sidebarMenu"
+            aria-controls="sidebarMenu"
+            aria-expanded="false"
+            aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="navbar-nav">
+      <div class="nav-item text-nowrap">
+        <a class="nav-link px-3" href="#">Sign out</a>
+      </div>
     </div>
-  </div>
-</header>
-
-{% macro nav_item(friendly, link="/#", icon="bi-app") %}
-<li class="nav-item active">
-  <a class="nav-link" href="{{link}}">
-    <i class="{{icon}}"></i>&nbsp
-    <span>{{friendly}}</span>
-  </a>
-</li>    
-{% endmacro %}
-
-<!-- Sidebar -->
-<div class="container-fluid">
-  <div class="row">
-    <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
-      <ul class="nav flex-column mb-auto">
-        {{nav_item("Dashboard", "/dashboard", "bi-speedometer2")}}
-        {{nav_item("Upload Ops", "/upload", "bi-upload")}}
-        {{nav_item("Upload Locs", "/uploadlocs", "bi-upload")}}
-        {{nav_item("Operator Dash", "/operator", "bi-box-seam")}}
-        <hr>
-        {{nav_item("Jobs", "/jobs", "bi-briefcase")}}
-        {{nav_item("Operations", "/operations", "bi-clipboard-check")}}
-        {{nav_item("Locations", "/locations", "bi-pin-angle")}}
-        {{nav_item("Workers", "/workers", "bi-person-badge")}}
-        <hr>
-        {{nav_item("Cards", "/cards", "bi-card-text")}}
-
-      <ul class="nav flex-column mt-auto position-absolute bottom-0">
-        <li class="nav-item active">
-          <a id="live_status" class="nav-link" href="#">
-            <i class="bi-wifi-off text-danger"></i>&nbsp
-            <span  class="text-danger" >Disconnected</span>
-          </a>
-        </li>    
-      </ul>
-  </div>
-
-  </nav>
-
-  <!-- Main Content -->
-  <main class="col-md-9 ms-sm-auto col-lg-10 pt-3">
-    {% block content %}{% endblock %}
-
-
-  </main>
-
-
-</div>
-</div>
-<footer class="mt-auto">
+  </header>
+  <!-- Sidebar -->
   <div class="container-fluid">
     <div class="row">
-      <div class="col-md-3 col-lg-2 d-md-block">
-        Placeholder
-      </div>
-      <div class="col-md-9 col-lg-10 text-center">
-        <a class="text-decoration-none link-secondary"
-          href="https://www.ifm.eng.cam.ac.uk/research/dial/research-projects/digital-manufacturing-on-a-shoestring/">
-          <h6>Copyright © Shoestring 2022</h6>
-        </a>
-      </div>
+      <nav id="sidebarMenu"
+           class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+        <ul class="nav flex-column mb-auto">
+          {{ nav_item("Upload Ops", "/upload", "bi-file-arrow-up")}}
+          {{ nav_item("Setup Data", "/mgsetup", "bi-cloud")}}
+          <hr>
+          {{ nav_item("Jobs", "/jobs", "bi-briefcase")}}
+          {{ nav_item("Operations", "/operations", "bi-clipboard-check")}}
+          {{ nav_item("Locations", "/locations", "bi-pin-angle")}}
+          {{ nav_item("Workers", "/workers", "bi-person-badge")}}
+          <hr>
+          {{ nav_item("Factory Floor", "/factory", "bi-building")}}
+          {{ nav_item("Machine Dash", "/machine", "bi-motherboard")}}
+          {{ nav_item("Operation", "/operation", "bi-card-checklist")}}
+          <ul class="nav flex-column mt-auto position-absolute bottom-0">
+            <!--{% if request.session.current_operation is defined %}
+              <li class="nav-item active">
+                <a class="nav-link" href="/operation/">
+                  <i class="bi-card-text"></i>
+                  <span id="machine_footer_name">&nbsp{{ request.session.current_operation }}</span>
+                </a>
+              </li>
+            {% endif %}-->
+            {% if request.session.location_id is defined %}
+              <li class="nav-item active">
+                <a class="nav-link" href="/machine/">
+                  <i class="bi-pin-angle"></i>
+                  <span id="machine_footer_name">&nbsp{{ request.session.location_id }}</span>
+                </a>
+              </li>
+            {% endif %}
+            <li class="nav-item active">
+              <a id="live_status" class="nav-link" href="#">
+                <i class="bi-wifi-1 text-warning"></i>
+                <span class="text-warning">&nbspConnecting</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </nav>
+      <!-- Main Content -->
+      <main class="col-md-9 ms-sm-auto col-lg-10 pt-3">
+        {% for m in get_messages(request) %}
+          {% if "modal_confirm" in m.tags.split(' ') %}
+            {% set msg = m.message|from_json %}
+            <div class="modal fade"
+                 id="modal_confirm"
+                 aria-labelledby="modalLabel2"
+                 aria-hidden="false">
+              <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title" id="modalLabel2">{{ msg.title }}</h5>
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body">
+                  {% if msg.message is not none %}{{ msg.message }}{% endif %}
+                  {% if msg.table is not none %}
+                    <table class="table table-striped my-3">
+                      {% for row in msg.table %}
+                        <tr>
+                          {% for val in row %}<td>{{ val }}</td>{% endfor %}
+                        </tr>
+                      {% endfor %}
+                    </table>
+                  {% endif %}
+                  {% if msg.message_bottom is not none %}{{ msg.message_bottom }}{% endif %}
+                  </div>
+                  <form method="post" class="modal-footer">
+                    <button type="button" class="btn btn-danger" data-bs-dismiss="modal" aria-label="Close">Cancel</button>
+                    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                    <button type="submit" name="{{ msg.name }}" class="btn btn-primary">{{msg.action}}</button>
+                    {% set data = msg.data|from_json %}
+                    {% for k, v in data.items() %}
+                      <input type="hidden" name="{{ k }}" value="{{ v }}">
+                    {% endfor %}
+
+                  </form>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+        {% block modals %}{% endblock %}
+        {% set msgSettings = {"debug": ("alert-light", "bi-code"),
+        "info": ("alert-info", "bi-info-circle"),
+        "success": ("alert-success", "bi-check-circle"),
+        "warning": ("alert-warning", "bi-exclamation-triangle"),
+        "error": ("alert-danger", "bi-exclamation-octagon-fill")}%}
+        {% for msg in get_messages(request) %}
+          {% set tags = msg.tags.split(' ') %}
+          {% if 'modal_confirm' not in msg.tags.split(' ') %}
+            <div class="row">
+              <div class="col-12">
+                <div class="container-fluid px-2">
+                  <div class="alert {{ msgSettings[msg.tags][0] }} alert-dismissible fade show"
+                       role="alert">
+                    <i class="{{ msgSettings[msg.tags][1] }}"></i>
+                    <span>&nbsp{{ msg }}</span>
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="alert"
+                            aria-label="Close"></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+        {% block content %}{% endblock %}
+      </main>
     </div>
   </div>
-</footer>
+  <footer class="mt-auto">
+    <div class="container-fluid">
+      <div class="row">
+        <div class="col-md-3 col-lg-2 d-md-block">Placeholder</div>
+        <div class="col-md-9 col-lg-10 text-center">
+          <a class="text-decoration-none link-secondary"
+             href="https://www.ifm.eng.cam.ac.uk/research/dial/research-projects/digital-manufacturing-on-a-shoestring/">
+            <h6>Copyright &copy; Shoestring 2022</h6>
+          </a>
+        </div>
+      </div>
+    </div>
+  </footer>
 {% endblock %}
-
 {% block scripts %}
-
-<script src="{{STATIC}}js/dashboard.js"></script>
-<script src="{{STATIC}}js/feather.js"></script>
-
-<script>
+  <script src="{{STATIC}}js/dashboard.js"></script>
+  <script>
+    var myModal = new bootstrap.Modal(document.getElementById("modal_confirm"), {});
+    document.onreadystatechange = function () {
+      myModal.show();
+    };
+  </script>
+  <script>
+  function getCookie(cookieName) {
+    let cookie = {};
+    document.cookie.split(';').forEach(function(el) {
+      let [key,value] = el.split('=');
+      cookie[key.trim()] = value;
+    })
+    return cookie[cookieName];
+  }
   function status_connect(){
     var status = document.getElementById("live_status");
-    status.innerHTML = '<i class="bi-wifi text-success"></i>&nbsp<span class="text-success" >Connected</span>';
+    status.innerHTML = '<i class="bi-wifi text-success"></i>&nbsp<span class="text-success">Connected</span>';
   }
   
   function status_disconnect(){
     var status = document.getElementById("live_status");
-    status.innerHTML = '<i class="bi-wifi-off text-danger"></i>&nbsp<span class="text-danger" >Disconnected</span>';
+    status.innerHTML = '<i class="bi-wifi-off text-danger"></i>&nbsp<span class="text-danger">Disconnected</span>';
   }
 
   wsc.connect("ws://"+window.location.host+"/ws/stateupdates");
   wsc.register_connect_callback(status_connect);
   wsc.register_disconnect_callback(status_disconnect);
-</script>
-
+  </script>
 {% endblock %}

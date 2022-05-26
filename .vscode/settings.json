@@ -1,0 +1,4 @@
+{
+    "djlint.indent": 2
+	"emmet.includeLanguages": {"django-html": "html", "jinja-html": "html"}
+}

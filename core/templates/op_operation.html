@@ -1,0 +1,149 @@
+{% extends "_index.html" %}
+{% block content %}
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-7 col-12 mb-3 d-flex align-items-stretch">
+
+        <div class="row gy-4">
+          <div class="col-12 d-flex align-items-stretch">
+            <div class="card" style="width: 100%;">
+              <div class="card-header">
+                <h5 class=mb-1>Operation <strong>{{op_id}}</strong> at <strong>{{loc_name}}</strong></h5>
+              </div>
+              <div class="card-body">
+                Current Operation - ~curr_op~
+                <br>
+                Current Status - ~curr_status~
+                </div>
+            </div>
+          </div>
+          <form method="post" class="col-8 d-flex align-items-stretch">
+            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+            <input type="hidden" name="op_id" value={{op_id}}>
+            <input type="hidden" name="loc_id" value={{loc_id}}>
+            <button type="submit"
+                    name="advance_to_next_button"
+                    class="btn btn-success col-12">Advance to Next</button>
+          </form>
+          <form method="post" class="col-4 d-flex align-items-stretch">
+            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+            <input type="hidden" name="op_id" value={{op_id}}>
+            <input type="hidden" name="loc_id" value={{loc_id}}>
+            <button type="submit"
+                    name="undo_last_button"
+                    class="btn btn-secondary col-12">Undo Last</button>
+          </form>
+          <form method="post" class="col-6 d-flex align-items-stretch">
+            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+            <input type="hidden" name="op_id" value={{op_id}}>
+            <input type="hidden" name="loc_id" value={{loc_id}}>
+            <button type ="submit"
+                    name="call_manager_button"
+                    class="btn btn-danger col-12">Call Manager</button>
+          </form>
+          <div class="col-6 d-flex align-items-stretch">
+            <button type="button"
+                    class="btn btn-warning col-12"
+                    data-bs-toggle="modal"
+                    data-bs-target="#exampleModal">
+              Report Scrap
+            </button>
+          </div>
+          <div class="col-12">
+            <div class="card" style="width: 100%;">
+              <div class="card-header">Job Log</div>
+              <div class="card-body" style="overflow-y: auto; max-height: 50vh">
+                {{add_joblog(jobLog)}}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-5 col-12 mb-3 d-flex align-items-stretch">
+        <div class="card" style="width: 100%;">
+          <div class="card-header">Operation Information</div>
+          <div class="card-body">
+            {{ singletable(fieldDict, opData)}}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+{% block modals %}
+  <!-- Modal -->
+
+  
+  <div class="modal fade"
+       id="exampleModal"
+       tabindex="-1"
+       aria-labelledby="exampleModalLabel"
+       aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <form method="post" class="modal-content">
+
+        <div class="modal-header bg-light">
+          <h5 class="modal-title" id="exampleModalLabel">Report Scrap</h5>
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="Close"></button>
+        </div>
+        
+        <div class="modal-body">
+          <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+          <input type="hidden" name="scrapDesc" id="scrapDescInput" value=None>
+          <div class="container-fluid ">
+            <div class="row gy-3 mb-3 justify-content-center">
+              <label class="col-12" >Pick Scrap Code</label> 
+
+            {% for code, desc in scrapCodes.items() %}
+              <div class="col-lg-3 col-md-4 col-sm-6 px-2">
+                <input type="radio" name="scrapCode" class="btn-check" value="{{code}}" id="{{code}}" autocomplete="off" required>
+                <label class="btn btn-outline-primary col-12" onclick="updateDesc('{{code}} - {{desc}}')" for="{{code}}">{{code}}</label>
+              </div>
+            {% endfor %}
+            </div>
+
+            <div class="row mb-3">
+              <label for="staticEmail" class="col-sm-3 col-form-label">Description</label>
+              <div class="col-sm-9">
+                <input type="text" readonly class="form-control-plaintext" id="scrapDesc" value="">
+              </div>
+            </div>
+            <div class="row mb-3">
+              <label class="col-sm-3" for="scrapQty">Quantity</label>   
+              <div class="col-sm-9">
+              <input type="number" name="quantity" class="form-control" id="scrapQty" value=1>
+               </div>
+            </div>
+           </div>
+
+        </div>
+        <div class="modal-footer bg-light">
+          <input type="hidden" name="op_id" value={{op_id}}>
+          <input type="hidden" name="loc_id" value={{loc_id}}>
+          <button type="submit"
+                  name="report_scrap_button"
+                  class="btn btn-primary">Submit</button>
+
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+
+  function updateDesc(desc) {
+      
+    var descField = document.getElementById("scrapDesc");
+    descField.value = desc;
+    document.getElementById("scrapDescInput").value=desc;
+  }
+
+</script>
+
+{% endblock %}

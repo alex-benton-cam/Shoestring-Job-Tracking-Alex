@@ -3,7 +3,10 @@ import json
 import requests
 
 wrapper_group_name = "wrapper_in"
-
+class ChatConsumer(AsyncJsonWebsocketConsumer):
+    
+    
+    pass
 class StateUpdateConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         await self.channel_layer.group_add(wrapper_group_name,self.channel_name)

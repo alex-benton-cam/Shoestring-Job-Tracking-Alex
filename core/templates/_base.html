@@ -4,7 +4,7 @@
     {% set STATIC = "/static/" %}
 	    <!-- Title and favicon-->
     <title>{% block title %}{% endblock %}</title>
-    <!-- link rel="shortcut icon" href="{{STATIC}}assets/favicon.ico" -->
+    <link rel="shortcut icon" href="{{STATIC}}assets/favicon.ico">
     
     <!-- Required meta tags -->
     <meta charset="utf-8">
@@ -20,7 +20,10 @@
 
   </head>
 
+  
+
   <body class="d-flex flex-column min-vh-100">
+    {% block macros %}{% endblock %}
     {% block body %}
     {% endblock %}
 
@@ -35,7 +38,6 @@
     {% block scripts %}
     {% endblock %}
   
-    <script> create_modal(); </script>
   </body>
 
 </html>
