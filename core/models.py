@@ -31,7 +31,7 @@ class Location(models.Model):
     name = models.CharField("Name", max_length=50, unique=True)
     #machine = models.BooleanField("Machine", default=True)
     many_jobs = models.BooleanField("Many Jobs", default=False)
-    
+    buffer_add_list = list()   
     # Relationships
     worker = models.ForeignKey(Worker, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Worker")
     START = "Unreleased"
@@ -111,20 +111,24 @@ class Operation(models.Model):
     abs_link = models.CharField("Link", max_length=30, unique=True, editable=False)
     active = models.BooleanField("Active", default=False, editable=False)
     display = models.BooleanField("Display", default=True, editable=False)
+
+    
     
     # Operation Overall Status
+    NONE = None
     PENDING = "Pending"
     ACTIVE = "Active"
     COMPLETE = "Complete"
-    STATUS_CHOICES = [(PENDING, 'Pending'), (ACTIVE, 'Active'), (COMPLETE, 'Complete')]
-    status = models.CharField("Op Status", max_length=10, choices=STATUS_CHOICES, default=PENDING, editable=False)
+    STATUS_CHOICES = [(PENDING, 'Pending'), (ACTIVE, 'Active'), (COMPLETE, 'Complete'), (NONE, None)]
+    status = models.CharField("Op Status", max_length=10, choices=STATUS_CHOICES, default=PENDING, editable=False, null=True)
     
     # Interim Inspection
-    NONE = None
+    
     SETUP = "Setup"
     ONEOFF = "One-Off"
     INTERIM = "Interim Inspection"
     FULLBATCH = "Full Batch"
+    
     #Order is important - do not change
     PHASE_CHOICES = [(NONE, NONE), (PENDING, PENDING), (SETUP, SETUP), (ONEOFF, ONEOFF), (INTERIM, INTERIM), (FULLBATCH, FULLBATCH), (COMPLETE, COMPLETE)]
     PHASE_LIST = [e[0] for e in PHASE_CHOICES]
@@ -134,9 +138,10 @@ class Operation(models.Model):
     worker = models.ForeignKey(Worker, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Worker")
     location = models.ForeignKey(Location, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Location")
     job = models.ForeignKey(Job, on_delete=models.CASCADE, verbose_name="Job")
+    #paired_op = models.OneToOneField('self', on_delete=models.SET_NULL, null=True, blank=True, default=None, verbose_name="Paired Operation")
     
     # Entered Fieldss
-    issue_no = models.CharField("Issue No.", max_length=1)
+    issue_no = models.CharField("Issue No.", max_length=1, blank=True, null=True)
     op_no = models.IntegerField("Op No.")
     
     # Entered Fields - Optional

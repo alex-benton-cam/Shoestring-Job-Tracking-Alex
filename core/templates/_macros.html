@@ -26,23 +26,6 @@
     {% endfor %}
   </table>
 {% endmacro %}
-{% macro table_add_function(tabID, opt) %}
-  {% if opt=="none" %}
-  {% elif opt=="select" %}
-    $('#{{ tabID }} tbody').on('click', 'tr', function () {
-    if ($(this).hasClass('selected')) {
-    $(this).removeClass('selected');
-    } else {
-    table.$('tr.selected').removeClass('selected');
-    $(this).addClass('selected');
-    }
-    $('#work_order_field').value="Success";
-    //var rowData = $(this).data()[0];
-    alert(table.row( this ).data() );
-    document.getElementById("work_order_field").value=rowData;
-    });
-  {% endif %}
-{% endmacro %}
 
 {% macro table_scripts(tabID, opt) %}
   {% if opt=="none" %}
@@ -123,9 +106,9 @@
     {% endif %}
   </table>
   <script type="text/javascript" src="{{STATIC}}datatables/datatables.min.js"></script>
-  <script>alert({{option}})</script>
-  {{ table_scripts(tableid, option) }}
+    {{ table_scripts(tableid, option) }}
 {% endmacro %}
+
 {% macro add_joblog(joblog) %}
   <table class="table table-sm table-hover">
     {% for row in jobLog %}

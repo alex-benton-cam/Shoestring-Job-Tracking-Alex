@@ -29,10 +29,10 @@ M9,M9 (3 AXIS),False
 M10,M10 (3 AXIS),False
 M11,M11 (4AXIS),False
 M12,M12 (MANUAL),False
-Assembly1,DeBurr-Assy 1,True
-Assembly2,DeBurr-Assy 2,True
-Inspection1,Insp - 1,True
-Inspection2,Insp - 2,True
-InspGI,Insp - Goods In,True
-SubCon,Sub - Con,True
+Assy. 1,DeBurr-Assy 1,True
+Assy. 2,DeBurr-Assy 2,True
+Insp. 1,Insp - 1,True
+Insp. 2,Insp - 2,True
+Insp. GI,Insp - Goods In,True
+Sub-Con,Sub - Con,True
 Packing,Packing,True

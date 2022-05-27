@@ -121,7 +121,7 @@ class MgSetup(View):
         def CCtoString(str):
             return(" ".join(re.findall(r'[A-Z](?:[a-z]+|[A-Z]*(?=[A-Z]|$))', str)))
 
-        for i, model in enumerate(self.models):
+        for model in self.models:
             contextDict = {
                 "name": model.__name__,
                 "friendly": CCtoString(model.__name__),
@@ -302,12 +302,13 @@ class UploadOps(View):
             obj.insp_bool = False
             obj.location = Location.objects.get(loc_id=Location.INTERIM)
             obj.op_note = "Operation added automatically"
-            obj.name = "Interim inspection for operation {}".format(str(obj.op_id))
+            obj.name = "Interim inspection for {}".format(str(obj.op_id))
             obj.end_time = None
             obj.start_time = None
             obj.planned_run = None
             obj.planned_set = None
             obj.worker = None
+            obj.status = None
             obj.save()
 
     def get(self, request):
@@ -392,23 +393,31 @@ class ModelView(View):
                 "fieldDict": fieldDict, "queryData": queryData}
         )
 
-
 class OpDetail(View):
-    template = "_operator.html"
+
+    template = "op_operation.html"
     model = Operation
 
-    def template_args(self, operation):
+
+    def template_args(self, link):
+
+        operation = Operation.objects.get(link_slug=link)
 
         fieldDict = {
-            "op_id": {"verbose": "Operation", "href": "abs_link"},
+            # "op_id": {"verbose": "Operation", "href": "abs_link"},
             "job_id__work_no": {"verbose": "Job", "href": "job_id__abs_link"},
-            "name": {},
-            "job_id__company": {},
             "job_id__job_name": {},
+            "job_id__company": {},
+            "phase": {},
+            "insp_bool": {},
             "part_no": {},
             "job_id__quantity": {},
             "drg_no": {},
             "location_id__name": {"verbose": "Location", "href": "location_id__abs_link"},
+            "start_time": {},
+            "end_time": {},
+            "planned_set": {},
+            "planned_run": {},
         }
 
         linkFields = [v.get("href")
@@ -421,9 +430,6 @@ class OpDetail(View):
                 fieldDict[field_str]["verbose"] = get_verbose(
                     self.model, field_str)
 
-        log = operation.job.entry_set.filter(undone=False)
-        displayLog = {stdDateTime(entry.dt): entry.message for entry in log}
-
         scrapCodes = {s.id: s.name for s in ScrapCode.objects.all()}
 
         return {"fieldDict": fieldDict,
@@ -433,54 +439,13 @@ class OpDetail(View):
                 }
 
     def get(self, request, *args, **kwargs):
-        """
-        try:
-            op_id = kwargs["link_slug"]
-
-            try:
-                operation = Operation.objects.get(op_id=op_id)
-                context = self.template_args(operation)
-                context["submit"] = "get"
-                return render(request, self.template, context)
-
-            except ObjectDoesNotExist:
-                messages.error(request, "Operation {} does not exist".format(op_id))
-                return redirect("operations")
-
-        except:
-            messages.error(request, "Failed to get operation ID from url")
-            return redirect("operations")
-        """
-
-        result = detail_view_exists(request, Operation, **kwargs)
-        if not isinstance(result, Operation):
-            return result
-        else:
-            operation = result
-
-        # Continue
-        context = self.template_args(operation)
-        context["submit"] = "get"
+        operation = Operation.objects.get(link_slug=kwargs["link_slug"])
+        context = self.template_args(operation.link_slug)
         return render(request, self.template, context)
 
-    def post(self, request, *args, **kwargs):
-
-        operation = Operation.objects.get(link_slug=kwargs["link_slug"])
-        job = operation.job
-
-        if "advance_to_next_button" in request.POST:
-            job.add_entry("Query Submitted " + str(operation))
-
-        elif "undo_last_button" in request.POST:
-
-            latest = job.entry_set.latest("dt")
-            latest.undone = True
-            latest.save()
-
-        elif "report_scrap_button" in request.POST:
-            job.add_entry("Scrap Reported")
-
-        return redirect(operation.abs_link)
+    def post(self, request):
+        messages.info(request, "POST not implemented")
+        return redirect("operations")
 
 
 class JobDetail(View):
@@ -673,6 +638,11 @@ class Op_OperationDash(View):
                         title = "Begin Setup"
                         message = "Confirm Setup of operation {} has begun".format(
                             operation.op_id)
+                        
+                    elif operation.phase == Operation.ONEOFF:
+                        title = "Move to Interim Inspection"
+                        message = "Confirm first off of operation {} is complete and that it is being sent to interim inspection".format(operation.op_id)
+                        
 
                     elif operation.phase == Operation.FULLBATCH:
                         title = "Operation Complete"
@@ -739,10 +709,20 @@ class Op_OperationDash(View):
             if post["next_phase"] == Operation.COMPLETE:
                 operation.status = Operation.COMPLETE
                 messages.success(
-                    request, "Operation {} completed".format(post.op_id))
+                    request, "Operation {} completed".format(post["op_id"]))
+                
+            elif post["next_phase"] == Operation.INTERIM:
+                messages.success(request, "Operation {} moved to {}".format(
+                    post["op_id"], post["next_phase"]))
+                
+                insp_op = Operation.objects.get(op_id=operation.op_id+"I")
+                insp_op.status = Operation.PENDING
+                insp_op.save()
+                
+                
             else:
                 messages.success(request, "Operation {} moved to {} phase".format(
-                    post.op_id, post.next_phase))
+                    post["op_id"], post["next_phase"]))
 
             operation.phase = post["next_phase"]
             operation.save()
@@ -756,20 +736,26 @@ class Op_OperationDash(View):
 
 
 class Op_MachineView(View):
-    template = "op_machine.html"
+
+    template = None
     location = None
     confirm_modal = "machine_confirm_modal"
+    buffer_modal = "confirm_buffer_modal"
 
-    def machine_check_in(self, request, op, loc):
+    def machine_check_in(self, request, op, loc, many_jobs=False):
         request.session['current_operation'] = op.op_id
         message = "Operation '{}' checked in at '{}.'".format(
             op.op_id, loc.name)
         messages.success(request, message)
         op.check_in(loc)
-        return redirect("operation")
+        
+        if many_jobs:
+            return redirect("machine")
+        else:        
+            return redirect("operation")
 
     def get(self, request, *args, **kwargs):
-
+          
         try:
             location = request.session["location_id"]
             location = Location.objects.get(loc_id=location)
@@ -777,11 +763,12 @@ class Op_MachineView(View):
             messages.warning(
                 request, "A location must be selected to check in to a job")
             return redirect("factory")
-
+        
         queryPending = location.operation_set.all().filter(status=Operation.PENDING)
         queryActive = location.operation_set.all().filter(status=Operation.ACTIVE)
         queryComplete = location.operation_set.all().filter(status=Operation.COMPLETE)
 
+        
         fieldDict = {
             "op_id": {},
             "job": {"href": "job_id__abs_link"},
@@ -803,7 +790,7 @@ class Op_MachineView(View):
         else:
             actFieldDict, actData = (None, None)
 
-        fieldDict.pop("op_id")
+        #fieldDict.pop("op_id")
         compFieldDict, compData = get_datatable(
             fieldDict, queryComplete, Operation)
 
@@ -816,35 +803,54 @@ class Op_MachineView(View):
                    "compFieldDict": compFieldDict,
                    "compData": compData,
                    "locName": location.name}
+        
+        if location.many_jobs:
+            self.template = "op_buffer.html"
+            
+            
+                        
+        else:
+            self.template = "op_machine.html"
+        
+        
+        
         return render(request, self.template, context)
 
     def post(self, request, *args, **kwargs):
 
         #validPosts = ["check_in_button", "confirm_skip_modal"]
-        if "check_in_button" in request.POST:
-
-            # If operation ID is valid
+        if "check_in_button" in request.POST or "add_to_buffer_button" in request.POST:
+            
+            # Try if checked into a location            
             try:
-                device_location = Location.objects.get(
-                    loc_id=request.session["location_id"])
-                #operation = Operation.objects.get(op_id=request.POST["operation_id"])
+                device_location = Location.objects.get(loc_id=request.session["location_id"])
 
-                # Try if checked into a location
+                # If operation ID is valid
                 try:
-
-                    operation = Operation.objects.get(
-                        op_id=request.POST["operation_id"])
-                    dbprint(request.POST)
-
-                    dbprint(device_location)
-                    dbprint(device_location.operation_set.get)
-                    #operation = device_location.operation_set.get(status=Operation.ACTIVE)
-                    #operation = Operation.objects.get(op_id=request.POST["operation"])
-
-                    #loc_id = request.session['location_id']
-                    #device_location = Location.objects.get(loc_id=loc_id)
-
-                    # If no operations are already checked into a job
+                    operation = Operation.objects.get(op_id=request.POST["operation_id"])
+                
+                # Try finding job if work_no provided
+                except ObjectDoesNotExist:                    
+                    try:    
+                        job = Job.objects.get(work_no=request.POST["operation_id"])
+                        
+                        # Try getting operation from list of pending jobs 
+                        try:
+                            opsatloc = job.operation_set.filter(location=device_location)
+                            pendingops = opsatloc.filter(status=Operation.PENDING)
+                            operation = pendingops.order_by("op_no")[0]
+                        
+                        except Exception as e:
+                            messages.warning(
+                                request, "No pending operations from job {} at current machine. {}".format(request.POST["operation_id"]), e)
+                            return redirect("machine") 
+                        
+                    except ObjectDoesNotExist:
+                        messages.warning(
+                            request, "Invalid operation or job ID: {}".format(request.POST["operation_id"]))
+                        return redirect("machine")      
+                
+                finally:            
                     active_ops = device_location.operation_set.filter(
                         status=Operation.ACTIVE)
                     if not active_ops or device_location.many_jobs:
@@ -856,11 +862,16 @@ class Op_MachineView(View):
                             skippedOps = operation.job.operation_set.filter(
                                 status=Operation.PENDING, op_no__lt=operation.op_no)
                             wrongLoc = False if operation.location == device_location else True
-
+                            
+                            # Change name of modal based on adding to buffer or machine
+                            modalName = self.buffer_modal if device_location.many_jobs else self.confirm_modal
+                            
+                            
+                            
                             # Planned next operation Checked in to planned location
                             if not skippedOps and not wrongLoc:
 
-                                return self.machine_check_in(request, operation, device_location)
+                                return self.machine_check_in(request, operation, device_location, many_jobs=device_location.many_jobs)
 
                             # Check in will skip operations and set operation to a different machine
                             elif skippedOps and wrongLoc:
@@ -869,15 +880,15 @@ class Op_MachineView(View):
                                 message_bottom = "The operation is also planned for a different location: {}".format(
                                     operation.location)
                                 table = [[o.op_id, o.location.name, o.name]
-                                         for o in skippedOps]
+                                        for o in skippedOps]
                                 modalDict = {
-                                    "name": self.confirm_modal,
+                                    "name": modalName,
                                     "message": message,
                                     "message_bottom": message_bottom,
                                     "table": table,
                                     "title": "Check in will skip operations and set operation to a different machine",
                                     "data": {"op_id": operation.op_id,
-                                             "location": device_location.loc_id},
+                                            "location": device_location.loc_id},
                                     "action": "Confirm check in at {} and skip {} ops".format(device_location.name, len(skippedOps))
                                 }
                                 create_confirm_modal(request, **modalDict)
@@ -889,11 +900,11 @@ class Op_MachineView(View):
                                     str(operation), operation.location.name,)
 
                                 modalDict = {
-                                    "name": self.confirm_modal,
+                                    "name": modalName,
                                     "message": message,
                                     "title": "Check in will set operation to a different machine",
                                     "data": {"op_id": operation.op_id,
-                                             "location": device_location.loc_id},
+                                            "location": device_location.loc_id},
                                     "action": "Confirm check in at {}".format(device_location.name)
                                 }
                                 create_confirm_modal(request, **modalDict)
@@ -904,14 +915,14 @@ class Op_MachineView(View):
                                 message = "By checking in operation {}, you will mark the following operations as complete".format(
                                     operation.op_id)
                                 table = [[o.op_id, o.location.loc_id, o.name]
-                                         for o in skippedOps]
+                                        for o in skippedOps]
                                 modalDict = {
-                                    "name": self.confirm_modal,
+                                    "name": modalName,
                                     "message": message,
                                     "table": table,
                                     "title": "Check in will skip operations",
                                     "data": {"op_id": operation.op_id,
-                                             "location": device_location.loc_id},
+                                            "location": device_location.loc_id},
                                     "action": "Confirm skip {} ops".format(len(skippedOps))
                                 }
                                 create_confirm_modal(request, **modalDict)
@@ -919,35 +930,39 @@ class Op_MachineView(View):
 
                         else:
                             messages.warning(request,
-                                             "Cannot check in to an already completed operation")
+                                            "Cannot check in to an already completed operation")
                             return redirect("machine")
                     else:
                         messages.warning(request,
-                                         "There is already a job active at {}: {}.".format(device_location.name, device_location.operation_set.all()[0].op_id))
+                                        "There is already a job active at {}: {}.".format(device_location.name, device_location.operation_set.all()[0].op_id))
 
                         return redirect("operation")
 
-                except ObjectDoesNotExist:
-                    messages.warning(
-                        request, "Invalid operation ID")
-                    return redirect("machine")
+
+
+                        
+
 
             except ObjectDoesNotExist:
                 messages.warning(
                     request, "Location should be set before checking in to a job")
                 return redirect("factory")
-
+        
+        elif "add_to_buffer_button" in request.POST:
+            pass
+            
+        
         elif self.confirm_modal in request.POST:
 
             operation = Operation.objects.get(op_id=request.POST["op_id"])
             location = Location.objects.get(loc_id=request.POST["location"])
 
-            return self.machine_check_in(request, operation, location)
+            return self.machine_check_in(request, operation, location, many_jobs=location.many_jobs)
 
         else:
             print(request.POST)
             messages.error(request, "Invalid post request")
-            return(redirect("machine"))
+            return redirect("machine")
 
 
 class Op_FactoryFloor(View):
