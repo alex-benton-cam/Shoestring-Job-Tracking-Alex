@@ -1,12 +1,66 @@
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 import json
+from numpy import var
 import requests
-
+from channels.db import database_sync_to_async
+from core.models import Location
+def dbprint(*args):
+    print("----------")
+    for arg in args:
+        print(arg)
+    print("----------")
+    
 wrapper_group_name = "wrapper_in"
-class ChatConsumer(AsyncJsonWebsocketConsumer):
+class ManagerConsumer(AsyncJsonWebsocketConsumer):
+    
+    @database_sync_to_async
+    def change_help_var(self, locid, val):
+        loc = Location.objects.get(loc_id=locid)
+        loc.help_req = val
+        loc.save()
     
     
-    pass
+    async def connect(self):
+        await self.channel_layer.group_add("manager_websocket",self.channel_name)
+        await self.accept()    
+    
+    
+    async def message(self, event):
+        #message = json.loads(event['message'])
+        dbprint("message sent in managerconsumer")
+        await self.send_json(
+            {
+                "tag":event['tag'],
+                "content":event['content'],
+                },
+            ) 
+        
+    
+        
+    async def receive_json(self,content):
+        dbprint(f"Manager Websocket got:{content}")
+        tag = content.get('tag',None)
+        content = content.get('content',None)
+               
+        if tag == "call_manager_button":
+            await self.change_help_var(content, True)
+            await self.channel_layer.group_send(
+                "manager_websocket",
+                {
+                    'type':"message",
+                    'content':content,
+                    'tag':tag
+                }
+            )     
+        
+        elif tag == "cancel_call_manager":
+            await self.change_help_var(content, False)
+        else:
+            pass  
+        
+   
+        
+
 class StateUpdateConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         await self.channel_layer.group_add(wrapper_group_name,self.channel_name)
@@ -16,11 +70,23 @@ class StateUpdateConsumer(AsyncJsonWebsocketConsumer):
         pass
     
     async def receive_json(self,content):
-        print(f"Websocket got:{content}")
+        dbprint(f"WSC got:{content}")
         tag = content.get('tag',None)
         content = content.get('content',None)
-        if tag is not None and content is not None:
-            print("sending on channel layer")
+        dbprint("SU Consumer got {} {}".format(tag, content))
+
+        if tag == "call_manager_button":
+            self.channel_layer.group_send(
+                        "manager_websocket",
+                        {
+                            'type':"message",
+                            'content':content,
+                            'tag':tag
+                        }
+                    )    
+            
+        elif tag is not None and content is not None:
+            dbprint("WSC sending on channel layer")
             await self.channel_layer.send(
                     "wrapper_out",
                     {
@@ -34,7 +100,7 @@ class StateUpdateConsumer(AsyncJsonWebsocketConsumer):
 
     async def mqtt_update(self,event):
         message = json.loads(event['message'])
-        print("CONSUMER GOT", message)
+        dbprint("WSC CONSUMER GOT", message)
         if message['state'] == 'entered' or message['state'] == 'changed':
             ws_message = message
             await self.send_json(

@@ -1,43 +1,31 @@
-{% extends "_base.html" %}
-
-{% block title %}Dashboard Login{% endblock %}
-
-{% block links %}
-<!-- Custom fonts for this template-->
-<link href="/static/vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
-
-<!-- Custom styles for this template-->
-<link href="/static/css/sb-admin.css" rel="stylesheet">
-{% endblock %}
-{% block body %}
-<body class="bg-dark">
-
-  <div class="container">
-    <div class="card card-login mx-auto mt-5">
-      <div class="card-header">Login</div>
-      <div class="card-body">
-        <form method="post" action="/login/">
-            {% csrf_token %}
-          <div class="form-group">
-            <div class="form-label-group">
-              {{ form.username }}
+{% extends "_index.html" %}
+{% block content %}
+  <div class="container-fluid">
+    <div class="row my-5 d-flex justify-content-center">
+      <div class="col-md-6 col-lg-6">
+        <div class="card">
+          <div class="card-header">Login</div>
+          <form method="post" action="/login/">
+            <div class="card-body">
+              <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+              <div class="form-group mb-3">
+                <div class="form-label-group">{{ form.username }}</div>
+              </div>
+              <div class="form-group mb-3">
+                <div class="form-label-group">{{ form.password }}</div>
+              </div>
             </div>
-          </div>
-          <div class="form-group">
-            <div class="form-label-group">
-              {{ form.password }}
+            <div class="card-footer">
+              <button class="btn btn-primary btn-block" type="submit">Login</button>
             </div>
-          </div>
-          <button class="btn btn-primary btn-block" type="submit">Login</button>
-        </form>
-        <div class="text-center">
-          <a class="d-block small mt-3" href="register.html">Register an Account</a>
-          <a class="d-block small" href="forgot-password.html">Forgot Password?</a>
+          </form>
         </div>
       </div>
     </div>
   </div>
-
+{% endblock %}
+{% block scripts %}
+  {{ super()}}
   <script>
     document.getElementById("id_username").classList.add("form-control");
     document.getElementById("id_password").classList.add("form-control");
@@ -49,12 +37,4 @@
     document.getElementById("id_password").required = "required";
     document.getElementById("id_username").autofocus = "autofocus";
   </script>
-  <!-- Bootstrap core JavaScript-->
-  <script src="/static/vendor/jquery/jquery.min.js"></script>
-  <script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-
-  <!-- Core plugin JavaScript-->
-  <script src="/static/vendor/jquery-easing/jquery.easing.min.js"></script>
-
-</body>
 {% endblock %}

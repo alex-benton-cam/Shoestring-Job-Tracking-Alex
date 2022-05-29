@@ -12,6 +12,8 @@
     -
   {% elif attrs.href is defined %}
     <a href={{ rowData[attrs.href] }}>{{ rowData[field] }}</a>
+  {% elif attrs.suffix is defined %}
+  {{rowData[field]}} {{attrs.suffix}}
   {% else %}
     {{ rowData[field] }}
   {% endif %}
@@ -112,8 +114,9 @@
 {% macro add_joblog(joblog) %}
   <table class="table table-sm table-hover">
     {% for row in jobLog %}
-      <tr>
-        {% for field in row %}<td>{{ field }}</td>{% endfor %}
+
+      <tr class="{{"table-secondary" if row[-1] else ""}}">
+        {% for field in row[:-1] %}<td>{{ field }}</td>{% endfor %}
       </tr>
     {% endfor %}
   </table>

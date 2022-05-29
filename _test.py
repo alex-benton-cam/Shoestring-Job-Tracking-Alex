@@ -1,8 +1,9 @@
 from core.models import *
+from core.utils import *
 from django.apps import AppConfig, apps
 from django.core.exceptions import FieldDoesNotExist
 from django.db.models.base import ModelBase
-
+import re
 # python manage.py shell
 # exec(open("_test.py").read())
 
@@ -101,7 +102,9 @@ def attempt5():
     job = Job.objects.get(link_slug="w21704")
     print(job.operations)
     
-attempt5()
+
+
+print(CCtoString("AlexB"))
     
     
     

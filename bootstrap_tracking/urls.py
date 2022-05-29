@@ -23,6 +23,8 @@ urlpatterns = [
     # Infrastructural
     path('admin/', admin.site.urls),
     path('', views.Index.as_view(), name='index'),
+    path('login/', views.Login.as_view(), name='login'),
+    path('signout/', views.Logout.as_view(), name='signout'),
 
     # Main
     path('upload/', views.UploadOps.as_view(), name='upload'),
@@ -34,13 +36,12 @@ urlpatterns = [
     path('locations/', views.ModelView.as_view(model=Location), name='locations'),
     path('workers/', views.ModelView.as_view(model=Worker), name='workers'),
     path('operations/', views.ModelView.as_view(model=Operation), name='operations'),
-    
-    
-
+      
     # Detail Views
-    path('operation/<slug:link_slug>', views.OpDetail.as_view(), name='opdetail'),
+    path('operation/<slug:link_slug>', views.Op_OperationDash.as_view(), name='opdetail'),
     path('job/<slug:link_slug>', views.JobDetail.as_view(), name='jobdetail'),
     path('location/<slug:link_slug>', views.LocDetail.as_view(), name='locdetail'),
+    path('worker/<slug:link_slug>', views.WorkerDetail.as_view(), name='workerdetail'),
     
     #Operator Dashboard Views
     path('operation/', views.Op_OperationDash.as_view(), name='operation'),

@@ -1,5 +1,4 @@
 from ast import operator
-from datetime import datetime
 from logging import exception
 from time import sleep
 from django.http import HttpResponseRedirect, QueryDict, HttpResponse
@@ -9,33 +8,27 @@ from django import forms
 from django.db.models import ForeignKey
 
 from django.contrib.auth.forms import AuthenticationForm
-from django.contrib.auth import login, authenticate
+from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.models import User, AnonymousUser
 
 from django.contrib import messages
 from django.urls import reverse
 from django.core import serializers
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from numpy import disp
 from requests import request, session
 from django.conf import settings
 
-from .models import Operation, Job, Worker, Location, ScrapCode
+from .models import *
 import pandas as pd
 from core.utils import *
 from json import dumps, loads
-from pprint import pprint
+
 import re
 import os
 from io import BytesIO as IO
 from django.utils.safestring import mark_safe
-
-
-def dbprint(*args):
-    print("----------")
-    for arg in args:
-        pprint(arg)
-    print("----------")
 
 
 def detail_view_exists(request, model, **kwargs):
@@ -56,14 +49,36 @@ def detail_view_exists(request, model, **kwargs):
         return redirect("{}s".format(modelName.lower()))
 
 
+def render_wrapper(request, template, context={}):
+    if not isinstance(request.user, AnonymousUser):
+        if request.user.last_name:
+            context["manager_locations"] = request.user.last_name
+        context["user"] = CCtoString(request.user.username)
+        locs = json.loads(request.user.last_name)
+        helplocs = [l for l in locs if Location.objects.get(loc_id=l).help_req]
+        
+    context["help"] = helplocs if helplocs else None
+    return render(request, template, context)
+
+
+
+class LoginReq(LoginRequiredMixin, View):
+    login_url = '/login/'
+    redirect_field_name = ''
+
+
 class Index(View):
     template = "_index.html"
-
     def get(self, request):
-        return render(request, self.template)
-
-
-""""""
+        return render_wrapper(request, self.template)
+    
+class Logout(LoginReq):
+    def get(self, request):
+        un = CCtoString(request.user.username)
+        logout(request)
+        messages.success(request, "{} successfully logged out".format(un))
+        return redirect("index")
+        
 
 
 class UploadLocs(View):
@@ -71,7 +86,7 @@ class UploadLocs(View):
     template = "upload.html"
 
     def get(self, request):
-        return render(request, self.template)
+        return render_wrapper(request, self.template)
 
     def post(self, request):
         return redirect("locations")
@@ -98,8 +113,8 @@ class UploadLocs(View):
             return redirect("locations")
 
 
-class MgSetup(View):
-    template = "mg_Setup.html"
+class MgSetup(LoginReq):
+    template = "mg_setup.html"
     models = [Location, Worker, ScrapCode]
 
     def import_row(self, row, mod, request):
@@ -118,9 +133,6 @@ class MgSetup(View):
 
         context = []
 
-        def CCtoString(str):
-            return(" ".join(re.findall(r'[A-Z](?:[a-z]+|[A-Z]*(?=[A-Z]|$))', str)))
-
         for model in self.models:
             contextDict = {
                 "name": model.__name__,
@@ -131,16 +143,14 @@ class MgSetup(View):
             }
             context.append(contextDict)
 
-        return render(request, self.template, {"context": context})
+        return render_wrapper(request, self.template, {"context": context})
 
     def post(self, request):
 
-        dbprint(request.POST)
         try:
             type = [p for p in ["download", "upload",
                                 "example"] if p in request.POST][0]
             model = [m for m in self.models if m.__name__ in request.POST[type]][0]
-            dbprint(type, model)
 
             if type == "example":
 
@@ -175,7 +185,7 @@ class MgSetup(View):
                     csv_file.getvalue(), content_type="text/csv", charset="utf-8")
                 response['Content-Disposition'] = 'attachment; filename=existing_{}_data.csv'.format(
                     model.__name__)
-                return response.Red
+                return response
 
             elif type == "upload":
 
@@ -186,8 +196,6 @@ class MgSetup(View):
                         messages.warning(
                             request, "A .csv file must be uploaded")
                         return redirect("mgsetup")
-
-                    dbprint(model)
 
                     loadDF = pd.read_csv(csv_file, index_col=False)
                     loadDF = loadDF.where(pd.notnull(loadDF), None)
@@ -215,16 +223,17 @@ class MgSetup(View):
 
                     messages.error(
                         request, "Upload of {} failed: {}".format(model.__name__, e))
-        except Exception as e:
 
+        except Exception as e:
+            
             messages.error(request, "Invalid post request {}".format(e))
             return redirect("mgsetup")
 
         return redirect("mgsetup")
 
 
-class UploadOps(View):
-    template = "upload.html"
+class UploadOps(LoginReq):
+    template = "mg_upload.html"
 
     def import_op(self, row, dateCols=[]):
         rowDict = row.to_dict()
@@ -241,9 +250,11 @@ class UploadOps(View):
             # Create Job object if not already existing
             jobDict = {key: rowDict[key] for key in jobFields}
             parentJob = Job(**jobDict)
+            parentJob.status = Job.PENDING
             parentJob.save()
             parentJob.add_entry("Job uploaded to Shoestring Job Tracking")
 
+            
             for i, n in enumerate([0, 99]):
 
                 opDict = {"job": parentJob,
@@ -296,48 +307,133 @@ class UploadOps(View):
         obj.phase = Operation.PENDING if obj.insp_bool else Operation.NONE
         obj.save()
 
-        # Create interim inspection operation, based on a copy of initial obj
         if obj.insp_bool:
-            obj.is_interim = True
-            obj.insp_bool = False
-            obj.location = Location.objects.get(loc_id=Location.INTERIM)
-            obj.op_note = "Operation added automatically"
-            obj.name = "Interim inspection for {}".format(str(obj.op_id))
-            obj.end_time = None
-            obj.start_time = None
-            obj.planned_run = None
-            obj.planned_set = None
-            obj.worker = None
-            obj.status = None
-            obj.save()
+            create_interim_op(obj)
 
+    
+    def download_data(self, data, filename):
+               
+        queryDataDF = pd.DataFrame(data)
+        csv_file = IO()
+        queryDataDF.to_csv(csv_file, index=False)
+
+        print(csv_file)
+        response = HttpResponse(
+            csv_file.getvalue(), content_type="text/csv", charset="utf-8")
+        response['Content-Disposition'] = 'attachment; filename={}.csv'.format(filename)
+        return response
+        
+    
     def get(self, request):
-        return render(request, self.template)
+        qs = Job.objects.filter(status=Job.COMPLETE)        
+        fieldDict = {
+            "work_no": {"href": "abs_link"},
+            "status": {},
+            "company": {},
+            "job_name": {},
+            "quantity": {},
+            "operation_id__op_id": {"verbose": "Current Op", "href": "operation_id__abs_link"},
+            "operation_id__status": {"verbose": "Op Status"},
+            "operation_id__location_id__name": {"verbose": "Current Location", "href": "operation_id__location_id__abs_link"},
+        }
+        
+        fieldDict, data = get_datatable(fieldDict, qs, Job)
+        
+        context = {"fieldDict": fieldDict,
+                   "data": data}
+        
+        return render_wrapper(request, self.template, context)
 
     def post(self, request):
-        csv_file = request.FILES["csv_file"]
+        
+        dbprint(request.POST)
+        post = request.POST
+        #return redirect("upload")
+        if "upload_operations" in post:
+                        
+            csv_file = request.FILES["csv_file"]
 
-        if not csv_file.name.endswith(".csv"):
-            messages.warning(request, "A .csv file must be uploaded")
-            return HttpResponseRedirect(reverse("upload"))
+            if not csv_file.name.endswith(".csv"):
+                messages.warning(request, "A .csv file must be uploaded")
+                return HttpResponseRedirect(reverse("upload"))
 
-        loadDF = pd.read_csv(csv_file)
-        loadDF = loadDF.where(pd.notnull(loadDF), None)
-        loadDF.index.rename("upload_id", inplace=True)
+            loadDF = pd.read_csv(csv_file)
+            loadDF = loadDF.where(pd.notnull(loadDF), None)
+            loadDF.index.rename("upload_id", inplace=True)
 
-        loadDF.apply(self.import_op, axis=1, dateCols=[
-                     "start_time", "end_time"])
+            loadDF.apply(self.import_op, axis=1, dateCols=[
+                        "start_time", "end_time"])
 
-        return redirect("operations")
+            return redirect("operations")
+        
+        elif "download_completed_jobs" in post:
+            qs = Job.objects.filter(status=Job.COMPLETE)
+            displayFields = [f.name for f in Job._meta.get_fields() if f.name != "operation"]
+            entryFields = [f.name for f in Entry._meta.get_fields()]
+            
+            queryData = list(qs.values(*displayFields))
+            dbprint(queryData)
+            for jobDict in queryData:
+                job = Job.objects.get(work_no=jobDict["work_no"])
+                jobDict["job_log"] = str(dumps(list(job.entry_set.all().values(*entryFields)), indent=4, sort_keys=True, default=str))
+
+            name = "Completed Jobs {}".format(displayDT(datetime.now()).replace("/", "-", -1).replace(":", "-"))
+            return self.download_data(queryData, name)
+        
+        elif "delete_completed_jobs" in post:
+            modalDict = {
+                "name": "confirm_delete_completed_jobs",
+                "message": "Confirm deletion of all completed jobs and all associated operations and job logs. This will reduce the amount of data on the system, potentially improving performance.",
+                "title": "Confirm Deletion",
+                "action": "Deleted Completed Jobs",
+                "message_bottom": "However, it is strongly reccomended that completed jobs be downloaded first - this action cannot be undone."}
+            create_confirm_modal(request, **modalDict)
+            return redirect("upload")
+        
+        elif "download_completed_operations" in post:
+            qs = Operation.objects.filter(status=Operation.COMPLETE)
+            displayFields = [f.name for f in Operation._meta.get_fields()]
+            entryFields = [f.name for f in Entry._meta.get_fields()]
+
+            queryData = list(qs.values(*displayFields))
+            for opDict in queryData:
+                op = Operation.objects.get(op_id=opDict["op_id"])
+                opDict["operation_log"] = dumps(list(op.entry_set.all().values(*entryFields)), indent=4, sort_keys=True, default=str)
+                print()
+                
+            dbprint(queryData)
+            name = "Completed Operations {}".format(displayDT(datetime.now()).replace("/", "-", -1).replace(":", "-"))
+            return self.download_data(queryData, name)
+
+        elif "download_completed_job_logs" in post:
+            qs = Operation.objects.filter(status=Operation.COMPLETE)
+            displayFields = [f.name for f in Entry._meta.get_fields()]
+            
+            entryData = []
+            for job in qs:
+                entries = job.entry_set.all()
+                entryData += list(entries.values(*displayFields))
+                
+            name = "Job Logs of Completed Operations {}".format(displayDT(datetime.now()).replace("/", "-", -1).replace(":", "-"))
+            return self.download_data(entryData, name)
+            
+
+        elif "make_backup" in post:
+            pass         
+        
+        elif "confirm_delete_completed_jobs" in post:
+            Job.objects.filter(status=Job.COMPLETE).delete()
+            messages.success(request, "All completed jobs have now been deleted")
+        
+        else:
+            messages.error(request, "Invalid opst request {}".format(post))               
+        return redirect("upload")
 
 
 class ModelView(View):
 
     model = None
-    template = "_datatable.html"
-
-    def get_object(self, queryset=None):
-        return queryset.get(model=self.model)
+    template = "mg_datatable.html"
 
     def get(self, request):
 
@@ -345,18 +441,21 @@ class ModelView(View):
 
         if self.model == Operation:
             query = Operation.objects.filter(display=True)
+            pageTitle = "All Operations"
             fieldDict = {
                 "job": {"href": "job_id__abs_link"},
                 "op_no": {"href": "abs_link"},
                 "name": {},
                 "location_id__name": {"verbose": "Location", "href": "location_id__abs_link"},
-                "worker": {"href": "worker_id__abs_link"},
+                "worker": {"verbose": "Operator", "href": "worker_id__abs_link"},
                 "job_id__quantity": {},
             }
 
         elif self.model == Job:
+            pageTitle = "All Jobs"
             fieldDict = {
                 "work_no": {"href": "abs_link"},
+                "status": {},
                 "company": {},
                 "job_name": {},
                 "quantity": {},
@@ -366,16 +465,18 @@ class ModelView(View):
             }
 
         elif self.model == Worker:
+            pageTitle = "All Operators"
             fieldDict = {
                 "name": {"href": "abs_link"},
             }
 
         elif self.model == Location:
+            pageTitle = "All Locations"
             fieldDict = {
                 "loc_id": {"href": "abs_link"},
                 "name": {},
                 "many_jobs": {},
-                "worker": {},
+                "worker": {"verbose": "Operator"},
             }
 
         else:
@@ -383,21 +484,22 @@ class ModelView(View):
                              if hasattr(self.model._meta.get_field(f.name), "verbose_name")
                              and f.name != "link_slug"]
             fieldDict = {k: {} for k in displayFields}
+            
 
         query = query if query is not None else self.model.objects.all()
 
         fieldDict, queryData = get_datatable(fieldDict, query, self.model)
+        context = {"fieldDict": fieldDict,
+                   "queryData": queryData,
+                   "page_title": pageTitle}
 
-        return render(
-            request, self.template, {
-                "fieldDict": fieldDict, "queryData": queryData}
-        )
+        return render_wrapper(request, self.template, context)
+
 
 class OpDetail(View):
 
     template = "op_operation.html"
     model = Operation
-
 
     def template_args(self, link):
 
@@ -441,7 +543,7 @@ class OpDetail(View):
     def get(self, request, *args, **kwargs):
         operation = Operation.objects.get(link_slug=kwargs["link_slug"])
         context = self.template_args(operation.link_slug)
-        return render(request, self.template, context)
+        return render_wrapper(request, self.template, context)
 
     def post(self, request):
         messages.info(request, "POST not implemented")
@@ -449,7 +551,7 @@ class OpDetail(View):
 
 
 class JobDetail(View):
-    template = "_job.html"
+    template = "mg_job.html"
 
     def get(self, request, *args, **kwargs):
 
@@ -459,12 +561,14 @@ class JobDetail(View):
         else:
 
             job = Job.objects.get(link_slug=kwargs["link_slug"])
-            # job.update()
+            job.save()
 
             fieldDict = {
 
                 "work_no": {"href": "abs_link"},
+                "status": {"verbose": "Job Status"},
                 "operation_id__op_id": {"verbose": "Current Operation", "href": "operation_id__abs_link"},
+                "operation_id__status": {"verbose": "Operation Status"},
                 "location_id__name": {"verbose": "Current Location", "href": "location_id__abs_link"},
                 "job_name": {},
                 "company": {},
@@ -503,8 +607,10 @@ class JobDetail(View):
                        "jobLog": get_job_log(job),
                        "opFieldDict": opFieldDict,
                        "opData": opData}
+            
+            dbprint(jobData)
 
-            return render(request, self.template, context)
+            return render_wrapper(request, self.template, context)
 
 
 class LocDetail(View):
@@ -522,6 +628,7 @@ class LocDetail(View):
         fieldDict = {
             "job": {"href": "job_id__abs_link"},
             "op_no": {"href": "abs_link"},
+            "status": {"verbose": "Op Status"},
             "name": {},
             "location_id__name": {"verbose": "Location", "href": "location_id__abs_link"},
             "worker": {"href": "worker_id__abs_link"},
@@ -530,9 +637,40 @@ class LocDetail(View):
         fieldDict, data = get_datatable(fieldDict, query, Operation)
         context = {"location": location.link_slug,
                    "fieldDict": fieldDict,
-                   "data": data}
+                   "data": data,
+                   "locName": location.name}
 
-        return render(request, self.template, context)
+        return render_wrapper(request, self.template, context)
+
+
+class WorkerDetail(LoginReq):
+    template = "_worker.html"
+
+    def get(self, request, *args, **kwargs):
+
+        result = detail_view_exists(request, Worker, **kwargs)
+        if not isinstance(result, Worker):
+            return result
+        else:
+            worker = result
+
+        query = worker.operation_set.all()
+        fieldDict = {
+            "job": {"href": "job_id__abs_link"},
+            "op_no": {"href": "abs_link"},
+            "status": {"verbose": "Op Status"},
+            "name": {},
+            "location_id__name": {"verbose": "Location", "href": "location_id__abs_link"},
+            "job_id__quantity": {},
+        }
+        fieldDict, data = get_datatable(fieldDict, query, Operation)
+        context = {"location": worker.link_slug,
+                   "fieldDict": fieldDict,
+                   "data": data,
+                   "name": worker.name}
+
+        return render_wrapper(request, self.template, context)
+
 
 
 class Op_OperationDash(View):
@@ -545,64 +683,117 @@ class Op_OperationDash(View):
 
         operation = Operation.objects.get(link_slug=link)
 
-        fieldDict = {
+        fieldDict1 = {
             # "op_id": {"verbose": "Operation", "href": "abs_link"},
             "job_id__work_no": {"verbose": "Job", "href": "job_id__abs_link"},
             "job_id__job_name": {},
             "job_id__company": {},
+            "worker_id__name": {"verbose": "Operator"},
+            "status": {},
             "phase": {},
-            "insp_bool": {},
             "part_no": {},
             "job_id__quantity": {},
             "drg_no": {},
             "location_id__name": {"verbose": "Location", "href": "location_id__abs_link"},
+            "num_scrap": {}}
+
+
+        fieldDict2 = {
             "start_time": {},
             "end_time": {},
-            "planned_set": {},
-            "planned_run": {},
-        }
+            "planned_set": {"suffix": "mins"},
+            "planned_run": {"suffix": "mins"},
+            "actual_start_time": {},
+            "actual_end_time": {},}
 
-        linkFields = [v.get("href")
-                      for v in fieldDict.values() if v.get("href")]
-        opData = {f: get_value(operation, f)
-                  for f in list(fieldDict.keys()) + linkFields}
+        if operation.insp_bool:
+        
+            extra = {
+                "actual_set": {"suffix": "mins"},
+                "actual_run": {"suffix": "mins"},
+                "actual_oneoff": {"suffix": "mins"},
+                "actual_insp": {"suffix": "mins"},
+                "actual_fullbatch": {"suffix": "mins"},
+                "last_action_time": {}}
+            fieldDict2 = fieldDict2 | extra
+            
+        
 
-        for field_str in fieldDict.keys():
-            if "verbose" not in fieldDict[field_str]:
-                fieldDict[field_str]["verbose"] = get_verbose(
-                    self.model, field_str)
-
+        
+        fieldDict1, opData1 = get_singletable(fieldDict1, operation, Operation)
+        fieldDict2, opData2 = get_singletable(fieldDict2, operation, Operation)
         scrapCodes = {s.id: s.name for s in ScrapCode.objects.all()}
 
-        return {"fieldDict": fieldDict,
-                "opData": dict(opData),
+        return {"fieldDict1": fieldDict1,
+                "opData1": dict(opData1),
+                "fieldDict2": fieldDict2,
+                "opData2": dict(opData2),
                 "jobLog": get_job_log(operation.job),
                 "scrapCodes": scrapCodes,
                 }
 
     def get(self, request, *args, **kwargs):
-
+        
         try:
-            location = Location.objects.get(
-                loc_id=request.session['location_id'])
-            dbprint(location)
-            try:
+            operation = Operation.objects.get(link_slug=kwargs["link_slug"])
+            manager = True
+        except:     
+            manager = False
+        
+        try:
 
-                operation = location.operation_set.get(status=Operation.ACTIVE)
+            if manager:
+                location = operation.location
+            else: 
+                location = Location.objects.get(loc_id=request.session['location_id'])
+            
+            try:
+                if not manager:
+                    operation = location.operation_set.get(status=Operation.ACTIVE)
+                
+                try:
+                    phaseNo = Operation.PHASE_LIST.index(operation.phase)
+                    nextPhase = Operation.PHASE_LIST[phaseNo+1]
+                except:
+                    phaseNo = None
+                    nextPhase = None
+                    
+                nameDict = {Operation.NONE: "Complete Operation",
+                            Operation.PENDING: "Start Setup Phase",
+                            Operation.SETUP: "Start One-Off Phase",
+                            Operation.ONEOFF: "Send to Interim Inspection",
+                            Operation.INTERIM: "Start Full Batch Phase",
+                            Operation.FULLBATCH: "Complete Operation",
+                            Operation.COMPLETE: "Operation already Complete"
+                            }    
+                
+                
+                # Gets data tables, job log, and scrap code                
                 context = self.template_args(operation.link_slug)
+                #Add simple arguments
                 context["submit"] = "get"
                 context["op_id"] = operation.op_id
+                context["op_name"] = operation.name
                 context["loc_id"] = location.loc_id
                 context["loc_name"] = location.name
                 context["job_title"] = str(operation.job)
-                return render(request, self.template, context)
+                context["manager"] = manager
+                context["phase"] = operation.phase
+                context["next_phase"] = nextPhase
+                context["op_status"] = operation.status
+                context["button_text"] = nameDict[operation.phase]
+                
+                return render_wrapper(request, self.template, context)
 
                 # print(request.session["current_operation"])
                 #operation = Operation.objects.get(op_id=request.session["current_operation"])
 
+            except MultipleObjectsReturned:
+                messages.warning(request, "More than one operation active on this location")
+                return redirect("machine")
+            
             except:
-                messages.warning(
-                    request, "An operation must be checked in to first")
+                messages.warning(request, "An operation must be checked in to first")
                 return redirect("machine")
 
         except:
@@ -611,7 +802,6 @@ class Op_OperationDash(View):
 
     def post(self, request, *args, **kwargs):
         post = request.POST
-        dbprint(post)
 
         try:
             location = Location.objects.get(loc_id=post["loc_id"])
@@ -633,17 +823,28 @@ class Op_OperationDash(View):
                     phaseNo = Operation.PHASE_LIST.index(operation.phase)
                     nextPhase = Operation.PHASE_LIST[phaseNo+1]
                     action = "Confirm"
-
+                    message_bottom = None
+                    name = "advance_modal"
+                    
                     if operation.phase == Operation.PENDING:
                         title = "Begin Setup"
                         message = "Confirm Setup of operation {} has begun".format(
                             operation.op_id)
-                        
-                    elif operation.phase == Operation.ONEOFF:
-                        title = "Move to Interim Inspection"
-                        message = "Confirm first off of operation {} is complete and that it is being sent to interim inspection".format(operation.op_id)
-                        
 
+                    elif operation.phase == Operation.ONEOFF:                        
+                        title = "Move to Interim Inspection"
+                        message = "Confirm first off of operation {} is complete and is being moved to interim inspection".format(
+                            operation.op_id)
+                        
+                    elif operation.phase == Operation.INTERIM:
+                        title = "Interim Inspection Completed"
+                        message = "Confirm interim inspection of operation {} is complete".format(
+                            operation.op_id)
+                        message_bottom = "Did interim inspection pass or fail?"
+                        action = "PASS"
+                        action2 = "FAIL"
+                        name = "inspection_modal"
+                                                
                     elif operation.phase == Operation.FULLBATCH:
                         title = "Operation Complete"
                         message = "Confirm operation {} is complete".format(
@@ -656,14 +857,22 @@ class Op_OperationDash(View):
                         action = "Advance to {}".format(nextPhase)
 
                     modalDict = {
-                        "name": "advance_modal",
+                        "name": name,
                         "message": message,
                         "title": title,
                         "data": {"next_phase": nextPhase,
                                  "curr_phase": operation.phase,
                                  "op_id": operation.op_id,
                                  "loc_id": location.loc_id},
-                        "action": action}
+                        "action": action,
+                        "message_bottom":message_bottom}
+                    
+
+                    try:
+                        modalDict["action2"] = action2    
+                    except:
+                        pass                                       
+                        
 
                     create_confirm_modal(request, **modalDict)
                     return redirect("operation")
@@ -675,12 +884,20 @@ class Op_OperationDash(View):
 
             # Operation does not have interim inspection
             else:
-                messages.warning(request, "Operation cannot be advanced")
+                
+                modalDict = {
+                    "name": "advance_modal",
+                    "message": "Confirm operation {} is complete".format(operation.op_id),
+                    "title": "Operation Complete",
+                    "data": {"next_phase": Operation.COMPLETE,
+                                "curr_phase": operation.phase,
+                                "op_id": operation.op_id,
+                                "loc_id": location.loc_id},
+                    "action": "Confirm",}                
+                
+                create_confirm_modal(request, **modalDict)
                 return redirect("operation")
-
-            dbprint(operation.phase)
-            dbprint([x[0] for x in Operation.PHASE_CHOICES])
-
+            
             job.add_entry("Query Submitted " + str(operation))
             return redirect("operation")
 
@@ -691,7 +908,13 @@ class Op_OperationDash(View):
             return redirect("operation")
 
         elif "report_scrap_button" in post:
-            dbprint(post)
+            try: 
+                assert(int(post["quantity"])>0)
+            except:
+                messages.warning(request, "Must give a valid scrap quantity greater than 1")
+                return redirect("operation")
+            
+            
             data = dumps({"scrapCode": post["scrapCode"],
                           "quantity": post["quantity"],
                           "loc_id": post["loc_id"],
@@ -701,33 +924,108 @@ class Op_OperationDash(View):
             return redirect("operation")
 
         elif "call_manager_button" in post:
+            
+            title = "Interim Inspection Completed"
+            message = "Confirm interim inspection of operation {} is complete".format(
+            operation.op_id)
+            message_bottom = "Did interim inspection pass or fail?"
+            action = "PASS"
+            action2 = "FAIL"
+            name = "inspection_modal"
+            
+            
+            modalDict = {
+                "title": "Confirm Help Required",
+                "name": "call_manager_modal",
+                "message": "Call manager or cancel help request",
+                "action": "Confirm",
+                "action2": "Cancel",
+                "do_ws": "true",
+                }                
+                
+            create_confirm_modal(request, **modalDict)
+            return redirect("operation")
+            
             messages.info(request, "Call Manager not implemented")
             return redirect("operation")
 
         elif "advance_modal" in post:
 
-            if post["next_phase"] == Operation.COMPLETE:
-                operation.status = Operation.COMPLETE
-                messages.success(
-                    request, "Operation {} completed".format(post["op_id"]))
-                
-            elif post["next_phase"] == Operation.INTERIM:
-                messages.success(request, "Operation {} moved to {}".format(
-                    post["op_id"], post["next_phase"]))
-                
+            try:
+                next = post["next_phase"]
+            except:
+                messages.error(request, "No 'next_phase' value passed")
+                return redirect("operation")
+
+            message = "{} phase begun".format(post["next_phase"])
+            if next == Operation.SETUP:
+                operation.actual_start_time = stdDateTime()
+
+            elif next == Operation.ONEOFF:
+                operation.actual_set = minutesSince(operation.last_action_time)
+
+            elif next == Operation.INTERIM:
+                operation.actual_oneoff = minutesSince(
+                    operation.last_action_time)
+
                 insp_op = Operation.objects.get(op_id=operation.op_id+"I")
                 insp_op.status = Operation.PENDING
                 insp_op.save()
-                
-                
-            else:
-                messages.success(request, "Operation {} moved to {} phase".format(
-                    post["op_id"], post["next_phase"]))
 
+            elif next == Operation.FULLBATCH:
+                operation.actual_insp = minutesSince(
+                    operation.last_action_time)
+                
+
+            elif next == Operation.COMPLETE:
+                
+                
+                if operation.insp_bool:
+                    operation.actual_fullbatch = minutesSince(
+                        operation.last_action_time)
+                    operation.actual_run =round(operation.actual_fullbatch + operation.actual_oneoff, 2)
+                else:
+                    operation.actual_run = minutesSince(operation.last_action_time)
+                
+                operation.check_out()    
+                operation.save()
+                messages.success(
+                    request, "Operation {} completed".format(post["op_id"]))
+                return redirect("machine")
+
+            else:
+                messages.error(
+                    request, "Wrong value for next phase: {}".format(next))
+                return redirect("operation")
+
+            messages.success(request, message)
+            operation.last_action_time = stdDateTime()
             operation.phase = post["next_phase"]
             operation.save()
             operation.add_entry("{} phase begun".format(operation.phase))
+            return redirect("operation")
+        
+        elif "inspection_modal" in post:
+            res = post["inspection_modal"]
+            
+            if res == "FAIL":
+                messages.success(request, "Inspection failed, returning to One-Off phase")
+                operation.phase = Operation.ONEOFF
+                operation.add_entry("Insp. failed, one-off restarted")
 
+            
+            elif res == "PASS":
+                messages.success(request, "Inspection passed, moving to Full Batch phase")
+                operation.phase = Operation.FULLBATCH
+                operation.add_entry("Insp. passed, full batch started")
+
+            
+            else:
+                messages.error(request, "Invalid inspection modal result {}".format(post["inspection_modal"]))
+            
+            operation.actual_insp = minutesSince(operation.last_action_time)  
+            operation.last_action_time = stdDateTime()                      
+            operation.save()
             return redirect("operation")
 
         else:
@@ -743,19 +1041,30 @@ class Op_MachineView(View):
     buffer_modal = "confirm_buffer_modal"
 
     def machine_check_in(self, request, op, loc, many_jobs=False):
-        request.session['current_operation'] = op.op_id
+
         message = "Operation '{}' checked in at '{}.'".format(
             op.op_id, loc.name)
         messages.success(request, message)
         op.check_in(loc)
-        
+
         if many_jobs:
             return redirect("machine")
-        else:        
+        else:
             return redirect("operation")
 
+    def machine_check_out(self, request, op, loc, many_jobs=False):
+        if many_jobs == False:
+            messages.error(
+                request, "Should not call machine_check_out from a non-buffer")
+
+        message = "Operation '{}' checked out from '{}.'".format(
+            op.op_id, loc.name)
+        messages.info(request, message)
+        op.check_out()
+        return redirect("machine")
+
     def get(self, request, *args, **kwargs):
-          
+
         try:
             location = request.session["location_id"]
             location = Location.objects.get(loc_id=location)
@@ -763,12 +1072,11 @@ class Op_MachineView(View):
             messages.warning(
                 request, "A location must be selected to check in to a job")
             return redirect("factory")
-        
+
         queryPending = location.operation_set.all().filter(status=Operation.PENDING)
         queryActive = location.operation_set.all().filter(status=Operation.ACTIVE)
         queryComplete = location.operation_set.all().filter(status=Operation.COMPLETE)
 
-        
         fieldDict = {
             "op_id": {},
             "job": {"href": "job_id__abs_link"},
@@ -790,11 +1098,9 @@ class Op_MachineView(View):
         else:
             actFieldDict, actData = (None, None)
 
-        #fieldDict.pop("op_id")
+        # fieldDict.pop("op_id")
         compFieldDict, compData = get_datatable(
             fieldDict, queryComplete, Operation)
-
-        dbprint(compData)
 
         context = {"pendFieldDict": pendFieldDict,
                    "pendData": pendData,
@@ -802,81 +1108,129 @@ class Op_MachineView(View):
                    "actData": actData,
                    "compFieldDict": compFieldDict,
                    "compData": compData,
-                   "locName": location.name}
-        
+                   "locName": location.name
+                   }
+
         if location.many_jobs:
             self.template = "op_buffer.html"
-            
-            
-                        
+            if "last_action" in request.session:
+                context["last_action"] = request.session["last_action"]
+            else:
+                context["last_action"] = "in"
+
         else:
             self.template = "op_machine.html"
-        
-        
-        
-        return render(request, self.template, context)
+
+        return render_wrapper(request, self.template, context)
 
     def post(self, request, *args, **kwargs):
 
         #validPosts = ["check_in_button", "confirm_skip_modal"]
+
         if "check_in_button" in request.POST or "add_to_buffer_button" in request.POST:
-            
-            # Try if checked into a location            
+            buffer_location = True if "add_to_buffer_button" in request.POST else False
+
+            # Try if checked into a location
             try:
-                device_location = Location.objects.get(loc_id=request.session["location_id"])
+                device_location = Location.objects.get(
+                    loc_id=request.session["location_id"])
 
                 # If operation ID is valid
                 try:
-                    operation = Operation.objects.get(op_id=request.POST["operation_id"])
-                
+                    operation = Operation.objects.get(
+                        op_id=request.POST["operation_id"])
+
                 # Try finding job if work_no provided
-                except ObjectDoesNotExist:                    
-                    try:    
-                        job = Job.objects.get(work_no=request.POST["operation_id"])
-                        
-                        # Try getting operation from list of pending jobs 
+                except ObjectDoesNotExist:
+                    try:
+                        job = Job.objects.get(
+                            work_no=request.POST["operation_id"])
+
+                        # Try getting operation from list of pending jobs
                         try:
-                            opsatloc = job.operation_set.filter(location=device_location)
-                            pendingops = opsatloc.filter(status=Operation.PENDING)
+                            opsatloc = job.operation_set.filter(
+                                location=device_location)
+                            pendingops = opsatloc.filter(
+                                status=Operation.PENDING)
                             operation = pendingops.order_by("op_no")[0]
-                        
+
                         except Exception as e:
                             messages.warning(
                                 request, "No pending operations from job {} at current machine. {}".format(request.POST["operation_id"]), e)
-                            return redirect("machine") 
-                        
+                            return redirect("machine")
+
                     except ObjectDoesNotExist:
                         messages.warning(
                             request, "Invalid operation or job ID: {}".format(request.POST["operation_id"]))
-                        return redirect("machine")      
+                        return redirect("machine")
+
+                finally:
+                    
+                    buffer_passed = False
+                    if "add_to_buffer_button" in request.POST:                        
+                        
+                        if request.POST["add_to_buffer_button"] == "out":
+                            request.session["last_action"] = "out"
+                            
+                            if operation.location == device_location:
+                                if operation.status == Operation.ACTIVE:
+                                    self.machine_check_out(request, operation, device_location, many_jobs=True)
+                                else:
+                                    messages.warning(request, "Cannot check out a non-active job")
+                                    request.session["last_action"]="in"
+                            else:
+                                messages.warning(request, "Cannot check out a job which is not at this machine")
+                                
+                        elif request.POST["add_to_buffer_button"] == "in":
+                            request.session["last_action"] = "in"
+                            
+                            if operation.location == device_location:
+                                if operation.status == Operation.PENDING:
+                                    buffer_passed = True
+                                    #self.machine_check_in(request, operation, device_location, many_jobs=True)
+                                    #messages.info(request, "Succesfully Checked out {}".format(operation.op_id))
+                                else:
+                                    messages.warning(request, "Cannot check in a non-pending job")
+                                    request.session["last_action"]="out"
+                            else:
+                                messages.warning(request, "Cannot check in a job which is not at this machine")                        
+
+                        else:
+                            messages.error(request, "Wrong value for add_to_buffer_button {}".format(str(request.POST)))
+                        
+                        if not buffer_passed:
+                            return redirect("machine")
                 
-                finally:            
                     active_ops = device_location.operation_set.filter(
                         status=Operation.ACTIVE)
-                    if not active_ops or device_location.many_jobs:
-                        # or device_location.many_jobs == True:
-
+                    
+                    # Exclude single-job machines with active ops
+                    if not (active_ops and not device_location.many_jobs):
+                        
                         # If trying to check into a completed job
                         if operation.status != Operation.COMPLETE:
 
                             skippedOps = operation.job.operation_set.filter(
                                 status=Operation.PENDING, op_no__lt=operation.op_no)
                             wrongLoc = False if operation.location == device_location else True
-                            
+
                             # Change name of modal based on adding to buffer or machine
                             modalName = self.buffer_modal if device_location.many_jobs else self.confirm_modal
-                            
-                            
+                            try:
+                                activeop = operation.job.operation_set.get(status=Operation.ACTIVE)
+                                activeopmessage = "(operation {} is currently active at {})".format(activeop, activeop.location)
+                            except:
+                                activeopmessage = ""                            
                             
                             # Planned next operation Checked in to planned location
                             if not skippedOps and not wrongLoc:
-
+                                dbprint("should defo get here")
                                 return self.machine_check_in(request, operation, device_location, many_jobs=device_location.many_jobs)
 
                             # Check in will skip operations and set operation to a different machine
                             elif skippedOps and wrongLoc:
-                                message = "By checking in operation {}, you will mark the following operations as complete".format(
-                                    operation.op_id)
+                                message = "By checking in operation {}, you will mark the following operations as complete {}".format(
+                                    operation.op_id, activeopmessage)
                                 message_bottom = "The operation is also planned for a different location: {}".format(
                                     operation.location)
                                 table = [[o.op_id, o.location.name, o.name]
@@ -912,8 +1266,8 @@ class Op_MachineView(View):
 
                             # Check in will skip operations
                             elif skippedOps and not wrongLoc:
-                                message = "By checking in operation {}, you will mark the following operations as complete".format(
-                                    operation.op_id)
+                                message = "By checking in operation {}, you will mark the following operations as complete {}".format(
+                                    operation.op_id, activeopmessage)
                                 table = [[o.op_id, o.location.loc_id, o.name]
                                         for o in skippedOps]
                                 modalDict = {
@@ -938,21 +1292,65 @@ class Op_MachineView(View):
 
                         return redirect("operation")
 
+            except ObjectDoesNotExist:
+                messages.warning(
+                    request, "Location should be set before checking in to a job (this could also be a server error)")
+                return redirect("factory")
+
+        elif "add_to_buffer_button" in request.POST:
 
 
-                        
+            # Try if checked into a location
+            try:
+                device_location = Location.objects.get(
+                    loc_id=request.session["location_id"])
 
+                # If operation ID is valid
+                try:
+                    operation = Operation.objects.get(
+                        op_id=request.POST["operation_id"])
+
+                # Try finding job if work_no provided
+                except ObjectDoesNotExist:
+                    try:
+                        job = Job.objects.get(
+                            work_no=request.POST["operation_id"])
+
+                        # Try getting operation from list of pending jobs
+                        try:
+                            opsatloc = job.operation_set.filter(
+                                location=device_location)
+                            pendingops = opsatloc.filter(
+                                status=Operation.PENDING)
+                            operation = pendingops.order_by("op_no")[0]
+
+                        except Exception as e:
+                            messages.warning(
+                                request, "No pending operations from job {} at current machine. {}".format(request.POST["operation_id"]), e)
+                            return redirect("machine")
+
+                    except ObjectDoesNotExist:
+                        messages.warning(
+                            request, "Invalid operation or job ID: {}".format(request.POST["operation_id"]))
+                        return redirect("machine")
+
+                finally:
+
+                    if request.POST["add_to_buffer_button"] == "in":
+                        pass
+
+                    elif request.POST["add_to_buffer_button"] == "out":
+                        pass
+                    else:
+                        messages.error(
+                            request, "Wrong value for add_to_buffer_button {}".format(str(request.POST)))
 
             except ObjectDoesNotExist:
                 messages.warning(
                     request, "Location should be set before checking in to a job")
                 return redirect("factory")
-        
-        elif "add_to_buffer_button" in request.POST:
-            pass
-            
-        
-        elif self.confirm_modal in request.POST:
+
+        elif self.confirm_modal in request.POST or self.buffer_modal in request.POST:
 
             operation = Operation.objects.get(op_id=request.POST["op_id"])
             location = Location.objects.get(loc_id=request.POST["location"])
@@ -981,7 +1379,7 @@ class Op_FactoryFloor(View):
         context = {"fieldDict": fieldDict,
                    "data": queryData}
 
-        return render(request, self.template, context)
+        return render_wrapper(request, self.template, context)
 
     def post(self, request, *args, **kwargs):
 
@@ -991,7 +1389,7 @@ class Op_FactoryFloor(View):
                 location = Location.objects.get(
                     loc_id=request.POST["machine_id"])
                 request.session['location_id'] = location.loc_id
-                dbprint(request.session['location_id'])
+
                 return redirect("machine")
             except:
                 if request.POST["machine_id"].lower() == "clear":
@@ -1008,13 +1406,12 @@ class Op_FactoryFloor(View):
             return(redirect("factory"))
 
 
-"""
 class Login(View):
     template = 'login.html'
     
     def get(self, request):
         form = AuthenticationForm()
-        return render(request, self.template, {'form': form})
+        return render_wrapper(request, self.template, {'form': form})
 
     def post(self, request):
         form = AuthenticationForm(request.POST)
@@ -1023,7 +1420,9 @@ class Login(View):
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
-            return HttpResponseRedirect('/')
+            messages.success(request, "Successful Login")
+            return redirect("jobs")
         else:
-            return render(request, self.template, {'form': form})
-"""
+            messages.warning(request, "Failed to Login")
+            return redirect("index")
+
