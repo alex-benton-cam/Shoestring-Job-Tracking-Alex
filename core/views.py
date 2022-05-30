@@ -717,7 +717,7 @@ class Op_OperationDash(View):
                 "actual_insp": {"suffix": "mins"},
                 "actual_fullbatch": {"suffix": "mins"},
                 "last_action_time": {}}
-            fieldDict2 = fieldDict2 | extra
+            fieldDict2 = {**fieldDict2, **extra}
             
         
 

@@ -19,7 +19,6 @@ def CCtoString(st):
     return st3
 
 
-
 def astz(dt):
     assert isinstance(dt, datetime)
     return dt.astimezone(TZINFO)
@@ -72,7 +71,7 @@ def create_confirm_modal(request, name="confirm_modal", title="Title", message="
     }
     
 
-    messages.info(request, dumps(modalDict | extra), extra_tags="modal_confirm")
+    messages.info(request, dumps({**modalDict, **extra}), extra_tags="modal_confirm")
 
 def create_interim_op(obj):
     Location = apps.get_model("core", "Location")

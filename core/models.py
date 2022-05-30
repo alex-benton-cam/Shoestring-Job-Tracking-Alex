@@ -299,7 +299,7 @@ class Entry(models.Model):
     operation = models.ForeignKey(Operation, on_delete=models.SET_NULL, blank=True, null=True)
     worker = models.ForeignKey(Worker, on_delete=models.SET_NULL, blank=True, null=True)
     location = models.ForeignKey(Location, on_delete=models.SET_NULL, blank=True, null=True)
-    data = models.JSONField("Data", default=None, null=True, blank=True)
+    data = models.TextField("Data", default=None, null=True, blank=True)
     
     def save(self, *args, **kwargs):
         dbprint("Entry added at entry model", self.dt)
