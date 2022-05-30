@@ -74,7 +74,7 @@
             </div-->
           {% endif %}
           {% if manager and user is defined %}
-            <div class="col-12 d-flex align-items-stretch">
+            <div class="col-md-6 d-flex align-items-stretch">
               <button type="button"
                       class="btn btn-warning col-12"
                       data-bs-toggle="modal"
@@ -82,6 +82,14 @@
                 Report Scrap
               </button>
             </div>
+            <form method="post" class="col-md-6 d-flex align-items-stretch">
+              <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+              <input type="hidden" name="op_id" value={{ op_id }}>
+              <input type="hidden" name="loc_id" value={{ loc_id }}>
+              <button type="submit"
+                      name="call_manager_button"
+                      class="btn btn-danger col-12 btn-lg">Call Manager</button>
+            </form>
           {% endif %}
           <div class="col-12">
             <div class="card" style="width: 100%;">

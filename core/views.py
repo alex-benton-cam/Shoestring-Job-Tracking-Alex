@@ -50,13 +50,15 @@ def detail_view_exists(request, model, **kwargs):
 
 
 def render_wrapper(request, template, context={}):
+    helplocs = None
     if not isinstance(request.user, AnonymousUser):
         if request.user.last_name:
             context["manager_locations"] = request.user.last_name
         context["user"] = CCtoString(request.user.username)
-        locs = json.loads(request.user.last_name)
-        helplocs = [l for l in locs if Location.objects.get(loc_id=l).help_req]
-        
+        if request.user.last_name:
+            locs = json.loads(request.user.last_name)
+            helplocs = [l for l in locs if Location.objects.get(loc_id=l).help_req]
+
     context["help"] = helplocs if helplocs else None
     return render(request, template, context)
 
