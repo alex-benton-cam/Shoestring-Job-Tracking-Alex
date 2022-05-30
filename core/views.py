@@ -257,7 +257,7 @@ class UploadOps(LoginReq):
             parentJob.add_entry("Job uploaded to Shoestring Job Tracking")
 
             
-            for i, n in enumerate([0, 99]):
+            for i, n in enumerate([0, 999]):
 
                 opDict = {"job": parentJob,
                           "op_no": n,
@@ -273,7 +273,7 @@ class UploadOps(LoginReq):
 
                 if i == 0:
                     obj.check_in(Location.objects.get(loc_id=(Location.START)))
-                    # parentJob.update()
+
 
         finally:
             # Change op dict to reflect job creation
@@ -298,11 +298,15 @@ class UploadOps(LoginReq):
                 parentLocation = Location.objects.get(name=rowDict["location"])
                 rowDict["location"] = parentLocation
             except ObjectDoesNotExist:
-                messages.warning(
-                    self.request, "Location '" +
-                    rowDict["location"] + "' does not Exist"
-                )
-                rowDict["location"] = None
+                try:
+                    parentLocation = Location.objects.get(loc_id=rowDict["location"])
+                    rowDict["location"] = parentLocation
+                except ObjectDoesNotExist:
+                    messages.warning(
+                        self.request, "Location '" +
+                        rowDict["location"] + "' does not Exist"
+                    )
+                    rowDict["location"] = None
 
         obj = Operation(**rowDict)
         # obj.save()

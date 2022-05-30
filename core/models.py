@@ -202,7 +202,7 @@ class Operation(models.Model):
         return self.op_id
     
     def save(self, *args, **kwargs):
-        op_id = str(self.job.work_no) + "/" + str(self.issue_no) + f'{self.op_no:02}'
+        op_id = str(self.job.work_no) + "/" + str(self.issue_no) + f'{self.op_no:03}'
         self.op_id = op_id if not self.is_interim else op_id+"I"
         self.link_slug = slugify(self.op_id)
         self.abs_link = "/operation/" + self.link_slug
