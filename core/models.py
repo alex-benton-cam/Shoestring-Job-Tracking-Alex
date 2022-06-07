@@ -32,14 +32,15 @@ class Location(models.Model):
     name = models.CharField("Name", max_length=50, unique=True)
     #machine = models.BooleanField("Machine", default=True)
     many_jobs = models.BooleanField("Many Jobs", default=False)
-    buffer_add_list = list()
     help_req = models.BooleanField("Help Needed", default=False)
+    START = "Unreleased"
+    END = "Finished"
+    INTERIM = "Interim Insp."
+    
+    
        
     # Relationships
     worker = models.ForeignKey(Worker, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Worker")
-    START = "Unreleased"
-    END = "Finished"     
-    INTERIM = "Interim Insp."
     
     def __str__(self):
         return self.loc_id
@@ -233,9 +234,13 @@ class Operation(models.Model):
             if op.status == self.ACTIVE:
                 op.add_entry("Operation completed".format(op.op_id, check_in_loc.name),
                             location=check_in_loc)
+                
             elif op.status == self.PENDING:
                 op.add_entry("Operation skipped".format(op.op_id, check_in_loc.name),
                             location=check_in_loc)
+                op.actual_start_time = stdDateTime()
+                
+            op.actual_end_time = stdDateTime()
             op.status = self.COMPLETE
             op.save()
             
@@ -243,7 +248,7 @@ class Operation(models.Model):
             self.add_entry("Op changed {} -> {}".format(self.location.loc_id, check_in_loc.loc_id), location=check_in_loc)
             self.location = check_in_loc
         
-        self.actual_start = stdDateTime()        
+        self.actual_start_time = stdDateTime()        
         self.last_action_time = stdDateTime()
         self.status=self.ACTIVE
         self.save()
@@ -264,14 +269,13 @@ class Operation(models.Model):
         self.save()
         
         if self.location == Location.objects.get(loc_id=Location.INTERIM):
-            nextloc = Operation.objects.filter(op_no=self.op_no).exclude(location=self.location)
+            nextloc = self.job.operation_set.filter(op_no=self.op_no).exclude(location=self.location).order_by("op_no")[0]
             self.job.location = nextloc.location
         else:
             nextloc = self.job.operation_set.filter(op_no__gt=self.op_no).exclude(is_interim=True).order_by("op_no")[0]
             
         self.job.operation = nextloc
         self.job.save()           
-        self.job.check_finish()
         
         if self.job.operation_set.exclude(status=Operation.COMPLETE).count() < 2:
             endop = self.job.operation_set.filter(status=Operation.PENDING)[0]
@@ -302,11 +306,25 @@ class Entry(models.Model):
     data = models.TextField("Data", default=None, null=True, blank=True)
     
     def save(self, *args, **kwargs):
-        dbprint("Entry added at entry model", self.dt)
         super(Entry, self).save(*args, **kwargs)
         
     
     def __str__(self):
         return displayDT(self.dt) + " - " + self.message
+    
+class FieldDict(models.Model):
+    id = models.CharField(primary_key=True, max_length=50)
+    data = models.TextField(default='{}')
+    name = models.TextField(null=True, blank=True)
+    
+    allModels = ["Worker", "Location", "Company", "Job", "Operation", "ScrapCode", "Entry"]
+    ALL = tuple([(x, x) for x in allModels])
+    model = models.CharField(max_length=20, choices=ALL, default=None, null=True, blank=True)
+    
+    def get(self):
+        return eval(self.data)    
+    
+    def __str__(self):
+        return self.name
     
     

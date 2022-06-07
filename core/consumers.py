@@ -4,12 +4,8 @@ from numpy import var
 import requests
 from channels.db import database_sync_to_async
 from core.models import Location
-def dbprint(*args):
-    print("----------")
-    for arg in args:
-        print(arg)
-    print("----------")
-    
+from core.utils import dbprint
+
 wrapper_group_name = "wrapper_in"
 class ManagerConsumer(AsyncJsonWebsocketConsumer):
     

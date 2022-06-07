@@ -8,16 +8,7 @@
 {% block body %}
   <!-- Navbar (Top of page) -->
   <header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
-    <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3" {{'href=/admin' if user is defined}}>Shoestring Job Tracking</a>
-    <button class="navbar-toggler d-md-none collapsed"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#sidebarMenu"
-            aria-controls="sidebarMenu"
-            aria-expanded="false"
-            aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
+    <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3" {{'href=/admin' if user is defined else 'href=/'}}>Shoestring Job Tracking</a>
     <div class="navbar-nav">
       <div class="nav-item text-nowrap">
         <div class="nav-link mx-3">
@@ -25,14 +16,16 @@
           {% if user is defined %}
             <a href="/signout" class="text-light pr-3"><i class="bi-person px-2"></i>Sign Out</a>
           {% endif %}
+          <button class="navbar-toggler d-md-none"
+                  type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#sidebarMenu"
+                  aria-controls="sidebarMenu"
+                  aria-expanded="false"
+                  aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+          </button>
         </div>
-        <!--div class="nav-link px-3" id="live_clock">{{ time|unix }}</div-->
-        <!--div class="nav-link px-3">Sign Out</div-->
-        <!--div class="nabar-nav">
-          <div class="nav-item">
-            <a class="nav-link px-3" href="#">Sign out</a>
-          </div>
-        </div-->
       </div>
     </div>
   </header>
@@ -41,15 +34,15 @@
     <div class="row">
       <nav id="sidebarMenu"
            class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
-        <ul class="nav flex-column mb-auto">
+        <ul class="nav flex-column mt-3 mb-auto">
           {% if user is defined %}
             {{ nav_item("Upload Ops", "/upload", "bi-file-arrow-up")}}
             {{ nav_item("Setup Data", "/mgsetup", "bi-cloud")}}
             <hr>
-            {{ nav_item("Jobs", "/jobs", "bi-briefcase")}}
-            {{ nav_item("Operations", "/operations", "bi-clipboard-check")}}
-            {{ nav_item("Locations", "/locations", "bi-pin-angle")}}
-            {{ nav_item("Workers", "/workers", "bi-person-badge")}}
+            {{ nav_item("All Jobs", "/jobs", "bi-briefcase")}}
+            {{ nav_item("All Operations", "/operations", "bi-clipboard-check")}}
+            {{ nav_item("All Locations", "/locations", "bi-pin-angle")}}
+            {{ nav_item("All Operators", "/workers", "bi-person-badge")}}
             <hr>
           {% endif %}
           {{ nav_item("Factory Floor", "/factory", "bi-building")}}
@@ -75,12 +68,15 @@
                   <span class="text-danger">&nbspHelp Needed</span>
                 </button>
                 <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-                 
                   {% for item in help %}
-                  <div class="dropdown-item">
-                   
-                      <span>{{ item }}</span>
-                  </div>
+                    <div class="dropdown-item">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <span>{{ item }}</span>
+                        <button type="button"
+                                class="btn-close"
+                                onclick="wsm.send('cancel_call_manager','{{ item }}')"></button>
+                      </div>
+                    </div>
                   {% endfor %}
                 </div>
               </div>
@@ -96,12 +92,14 @@
                 {{ nav_item("Log In", "/login", "bi-person")}}
               {% endif %}
               {% if request.session.location_id is defined %}
-                <li class="nav-item active">
-                  <a class="nav-link" href="/machine/">
-                    <i class="bi-pin-angle"></i>
-                    <span id="machine_footer_name">&nbsp{{ request.session.location_id }}</span>
-                  </a>
-                </li>
+                {% if request.session.location_id is not none %}
+                  <li class="nav-item active">
+                    <a class="nav-link" href="/machine/">
+                      <i class="bi-pin-angle"></i>
+                      <span id="machine_footer_name">&nbsp{{ request.session.location_id }}</span>
+                    </a>
+                  </li>
+                {% endif %}
               {% endif %}
               <li class="nav-item active">
                 <a id="live_status" class="nav-link" href="#">
@@ -149,15 +147,14 @@
                     </div>
                     {% if msg.do_ws is defined %}
                       <div class="modal-footer">
-                          <button onclick="wsm.send('cancel_call_manager','{{ loc_id }}')"
-                                  class="btn btn-primary px-5 btn-lg">
-                            Cancel Help Request
-                          </button>
-                          <button onclick="wsm.send('call_manager_button','{{ loc_id }}')"
-                                  class="btn btn-danger px-3 btn-lg">
-                            Call Manager
-                          </button>
-
+                        <button onclick="wsm.send('cancel_call_manager','{{ loc_id }}')"
+                                class="btn btn-primary px-5 btn-lg">
+                          Cancel Help Request
+                        </button>
+                        <button onclick="wsm.send('call_manager_button','{{ loc_id }}')"
+                                class="btn btn-danger px-3 btn-lg">
+                          Call Manager
+                        </button>
                       </div>
                     {% else %}
                       <form method="post" class="modal-footer">
@@ -231,6 +228,9 @@
               </div>
             {% endif %}
           {% endfor %}
+            {% if landing is defined %}
+            <h4 class="m-4">Welcome to Shoestring Job Tracking!</h4>
+            {% endif %}
           {% block content %}{% endblock %}
         </main>
       </div>
@@ -238,10 +238,10 @@
     <footer class="mt-auto">
       <div class="container-fluid">
         <div class="row">
-          <div class="col-md-3 col-lg-2 d-md-block">Placeholder</div>
+          <div class="col-md-3 col-lg-2 d-md-block"></div>
           <div class="col-md-9 col-lg-10 text-center">
             <a class="text-decoration-none link-secondary"
-               href="https://www.ifm.eng.cam.ac.uk/research/dial/research-projects/digital-manufacturing-on-a-shoestring/">
+               href="https://www.digitalshoestring.net/">
               <h6>Copyright &copy; Shoestring 2022</h6>
             </a>
           </div>

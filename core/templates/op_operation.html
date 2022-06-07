@@ -74,26 +74,41 @@
             </div-->
           {% endif %}
           {% if manager and user is defined %}
-            <div class="col-md-6 d-flex align-items-stretch">
-              <button type="button"
-                      class="btn btn-warning col-12"
-                      data-bs-toggle="modal"
-                      data-bs-target="#exampleModal">
+            <!--div class="col-md-12 d-flex align-items-stretch">
+              <button type="button" class="btn btn-warning col-12" data-bs-toggle="modal" data-bs-target="#exampleModal">
                 Report Scrap
               </button>
             </div>
+            <div class="col-md-6 d-flex align-items-stretch">
+              <button type="button" class="btn btn-info col-12 btn-lg" onclick="wsm.send('cancel_call_manager','{{ loc_id }}')">
+                Cancel Call Manager
+              </button>
+            </div>
+
             <form method="post" class="col-md-6 d-flex align-items-stretch">
               <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
               <input type="hidden" name="op_id" value={{ op_id }}>
               <input type="hidden" name="loc_id" value={{ loc_id }}>
-              <button type="submit"
-                      name="call_manager_button"
-                      class="btn btn-danger col-12 btn-lg">Call Manager</button>
-            </form>
+              <button type="submit" name="call_manager_button" class="btn btn-danger col-12 btn-lg">Call Manager</button>
+            </form-->
           {% endif %}
           <div class="col-12">
             <div class="card" style="width: 100%;">
-              <div class="card-header">Job Log</div>
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Job Log</span>
+
+                  {% if manager and user is defined %}
+                    <div class="col-md-4 d-flex align-items-stretch">
+                      <button type="button"
+                              class="btn btn-warning col-12"
+                              data-bs-toggle="modal"
+                              data-bs-target="#exampleModal">
+                        Report Scrap
+                      </button>
+                    </div>
+                  {% endif %}
+
+              </div>
               <div class="card-body" style="overflow-y: auto; max-height: 50vh">{{ add_joblog(jobLog)}}</div>
             </div>
           </div>
@@ -136,18 +151,23 @@
     <div class="modal-dialog modal-dialog-centered">
       <form method="post" class="modal-content">
         <div class="modal-header bg-light">
-          <h5 class="modal-title" id="exampleModalLabel">Report Scrap</h5>
+          <h5 class="modal-title" id="exampleModalLabel">
+            Report Scrap
+          </h5>
           <button type="button"
                   class="btn-close"
                   data-bs-dismiss="modal"
-                  aria-label="Close"></button>
+                  aria-label="Close">
+          </button>
         </div>
         <div class="modal-body">
           <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
           <input type="hidden" name="scrapDesc" id="scrapDescInput" value=None>
           <div class="container-fluid ">
             <div class="row gy-3 mb-3 justify-content-center">
-              <label class="col-12">Pick Scrap Code</label>
+              <label class="col-12">
+                Pick Scrap Code
+              </label>
               {% for code, desc in scrapCodes.items() %}
                 <div class="col-lg-3 col-md-4 col-sm-6 px-2">
                   <input type="radio"

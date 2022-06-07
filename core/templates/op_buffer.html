@@ -1,16 +1,25 @@
 {% extends "_index.html" %}
 {% block content %}
   <div class="container-fluid">
-    <div class="row mb-3 align-items-center justify-content-between">
-      <div class="col-lg-9 col-sm-8">
-        <h3>Location Dashboard - {{ locName }}</h3>
-      </div>
-      <div class="col-lg-3 col-sm-4">
-        <button class="btn btn-outline-primary disabled"
-                type="button"
-                id="toggle_button"
-                value="{{last_action}}"
-                onclick="toggle_check()">Toggle Check In/Out</button>
+    <div class="">
+      <div class="row mb-3 gy-3 d-flex align-items-center">
+        <div class="col-12 col-lg-7">
+          <h3>Location Dashboard - {{ locName }}</h3>
+        </div>
+        <div class = "col-12 col-lg-5 d-flex align-items-center justify-content-end">
+          <button onclick="wsm.send('call_manager_button','{{ loc_id }}')"
+                  name="call_manager_button"
+                  class="btn btn-danger mx-3">
+            Call Manager
+          </button>
+          <button class="btn btn-outline-primary disabled"
+                  type="button"
+                  id="toggle_button"
+                  value="{{ last_action }}"
+                  onclick="toggle_check()">
+            Toggle Check In/Out
+          </button>
+        </div>
       </div>
     </div>
     <div class="row mb-3">
@@ -20,10 +29,22 @@
             <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
             <div class="input-group">
               {% if last_action == "in" %}
-              <button type="submit" id="submit_button" name="add_to_buffer_button" value="in" class="btn btn-success col-2">Check Job In</button>
+                <button type="submit"
+                        id="submit_button"
+                        name="add_to_buffer_button"
+                        value="in"
+                        class="btn btn-success col-2">
+                  Check Job In
+                </button>
               {% else %}
-              <button type="submit" id="submit_button" name="add_to_buffer_button" value="out" class="btn btn-info col-2">Check Job Out</button>
-              {% endif %}              
+                <button type="submit"
+                        id="submit_button"
+                        name="add_to_buffer_button"
+                        value="out"
+                        class="btn btn-info col-2">
+                  Check Job Out
+                </button>
+              {% endif %}
               <input id="work_order_field"
                      name="operation_id"
                      placeholder="Op ID or Work Number"
@@ -77,7 +98,6 @@
 {% endblock %}
 {% block scripts %}
   {{ super() }}
-  
   <script>
     function toggle_check(){
       var button = document.getElementById("toggle_button");

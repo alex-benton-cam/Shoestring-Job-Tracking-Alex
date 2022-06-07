@@ -10,6 +10,7 @@ from django.shortcuts import render
 from bootstrap_tracking.settings import TIME_ZONE
 import re
 from django.contrib.auth.models import User
+from bootstrap_tracking.settings import DEBUG
 
 TZINFO = pytz.timezone(TIME_ZONE)
 
@@ -24,10 +25,11 @@ def astz(dt):
     return dt.astimezone(TZINFO)
 
 def dbprint(*args):
-    print("----------")
-    for arg in args:
-        pprint(arg)
-    print("----------")
+    if DEBUG:
+        print("----------")
+        for arg in args:
+            pprint(arg)
+        print("----------")
 
 def get_job_log(job):
     log = job.entry_set.all().order_by("-id")
