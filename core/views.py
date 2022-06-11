@@ -47,13 +47,28 @@ def detail_view_exists(request, model, **kwargs):
             return object
 
         except ObjectDoesNotExist:
-            messages.error(
-                request, "{} {} does not exist".format(modelName, slug))
+            messages.error(request, "{} {} does not exist".format(modelName, slug))
             return redirect("{}s".format(modelName.lower()))
 
     except:
         messages.error(request, "Failed to get operation ID from url")
         return redirect("{}s".format(modelName.lower()))
+
+"""
+# Try to find operation with op_id = "W/10000/A020"
+try: 
+    operation = Operation.objects.get(op_id="W/10000/A020")
+
+# If operation does not exist
+except ObjectDoesNotExist:
+    
+    # Create error message
+    messages.error(request, "Operation does not exist")
+    
+    # Redirect user to page where alert should be displayed
+    return redirect("operations")"""
+
+
 
 
 def render_wrapper(request, template, context={}):
@@ -356,13 +371,20 @@ class UploadOps(LoginReq):
         return response
 
     def get(self, request):
+        
+        # Select a list of objects for display in the table
         qs = Job.objects.filter(status=Job.COMPLETE)
+        
+        # Load a fieldDict (table config) using the config's ID
         fieldDict = FieldDict.objects.get(id="upload_ops_complete_jobs").get()
+        
+        # Use the get_datatable utility to create displayable data
         fieldDict, data = get_datatable(fieldDict, qs, Job)
 
-        context = {"fieldDict": fieldDict,
-                   "data": data}
+        # Make a context variable containing the fieldDict and data
+        context = {"fieldDict": fieldDict, "data": data}
 
+        # Render the web page
         return render_wrapper(request, self.template, context)
 
     def post(self, request):
@@ -653,6 +675,26 @@ class WorkerDetail(LoginReq):
                    "name": worker.name}
 
         return render_wrapper(request, self.template, context)
+"""
+class ExampleDisplay(View):
+    template = "_example.html"
+
+    def get(self, request, *args, **kwargs):
+
+        query = Operation.objects.all()        
+        fieldDict = FieldDict.objects.get(id="op_dash_tab_2").get()        
+        fieldDict, data = get_datatable(fieldDict, query, Operation)        
+        context = {"fieldDict": fieldDict,
+                   "data": data}
+
+        return render_wrapper(request, self.template, context)
+    
+    def post(self, request):
+        if "advance_modal" in post:
+            # Check operation out"""
+            
+
+
 
 
 class Op_OperationDash(View):
@@ -747,7 +789,6 @@ class Op_OperationDash(View):
                 return redirect("machine")
 
             except:
-                
                 messages.warning(
                     request, "An operation must be checked in to first")
                 return redirect("machine")
@@ -896,7 +937,7 @@ class Op_OperationDash(View):
             return redirect("operation")
 
         elif "advance_modal" in post:
-
+            
             try:
                 next = post["next_phase"]
             except:
